@@ -14,10 +14,12 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertsPanel } from "./AlertsPanel";
 import { SystemConfigModal } from "./SystemConfigModal";
 import { ProfileModal } from "./ProfileModal";
+import { useConnections } from "@/contexts/ConnectionsContext";
 import oxLogo from "@/assets/ox-logo.png";
 
 export const Header = () => {
   const { toast } = useToast();
+  const { activeConnectionsCount } = useConnections();
   const [systemConfigOpen, setSystemConfigOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   return (
@@ -40,7 +42,7 @@ export const Header = () => {
             {/* Status Badge */}
             <Badge variant="secondary" className="bg-secondary/20 text-secondary">
               <div className="w-2 h-2 bg-secondary rounded-full mr-2 animate-pulse" />
-              2 Chips Ativos
+              {activeConnectionsCount} Chips Ativos
             </Badge>
 
             {/* Alertas do Sistema */}

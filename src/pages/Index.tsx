@@ -11,6 +11,7 @@ import { CreateChipModal } from "@/components/CreateChipModal";
 import { QRCodeModal } from "@/components/QRCodeModal";
 import { AnalyticsModal } from "@/components/AnalyticsModal";
 import { useToast } from "@/hooks/use-toast";
+import { useConnections } from "@/contexts/ConnectionsContext";
 import { APIsTab } from "@/components/APIsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
@@ -26,6 +27,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
   const { toast } = useToast();
+  const { connections, activeConnectionsCount } = useConnections();
 
   const handleGenerateQRCode = (chipName: string, chipPhone: string) => {
     setSelectedChipForQR({ name: chipName, phone: chipPhone });
@@ -99,26 +101,26 @@ const Index = () => {
             <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <StatsCard 
                 title="Conexões Ativas"
-                value="0"
-                description="Configure suas primeiras conexões"
+                value={activeConnectionsCount.toString()}
+                description={activeConnectionsCount === 0 ? "Configure suas primeiras conexões" : "Conexões funcionando"}
                 icon={<Bot className="w-5 h-5 text-primary" />}
               />
               <StatsCard 
-                title="Conversas Hoje"
-                value="0"
-                description="Aguardando ativação"
+                title="Total de Conversas"
+                value={connections.reduce((total, conn) => total + conn.conversationsCount, 0).toString()}
+                description={connections.length === 0 ? "Aguardando ativação" : "Conversas processadas"}
                 icon={<MessageCircle className="w-5 h-5 text-secondary" />}
               />
               <StatsCard 
-                title="Taxa de Resposta"
-                value="0%"
-                description="Sem dados ainda"
+                title="Taxa de Conexão"
+                value={connections.length > 0 ? Math.round((activeConnectionsCount / connections.length) * 100) + "%" : "0%"}
+                description={connections.length === 0 ? "Sem dados ainda" : "Conexões funcionais"}
                 icon={<Zap className="w-5 h-5 text-accent" />}
               />
               <StatsCard 
                 title="Sistema"
-                value="Pronto"
-                description="Configuração inicial"
+                value={connections.length > 0 ? "Operacional" : "Pronto"}
+                description={connections.length > 0 ? "Sistema em funcionamento" : "Configuração inicial"}
                 icon={<Settings className="w-5 h-5 text-primary" />}
               />
             </section>
@@ -128,18 +130,35 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-semibold">Minhas Conexões</h2>
                 <div className="flex gap-2">
-                  <Badge variant="secondary">0 Total</Badge>
-                  <Badge variant="outline" className="text-secondary">0 Ativas</Badge>
+                  <Badge variant="secondary">{connections.length} Total</Badge>
+                  <Badge variant="outline" className="text-secondary">{activeConnectionsCount} Ativas</Badge>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Sem conexões por enquanto - dados reais apenas */}
+                {/* Conexões Reais */}
+                {connections.map((connection) => (
+                  <ChipCard
+                    key={connection.id}
+                    chip={{
+                      id: connection.id,
+                      name: connection.name,
+                      status: connection.status === 'active' ? 'active' : connection.status === 'inactive' ? 'idle' : 'offline',
+                      aiModel: connection.aiModel || 'ChatGPT',
+                      conversations: connection.conversationsCount,
+                      lastActive: new Date(connection.lastActive).toLocaleString('pt-BR')
+                    }}
+                    isSelected={selectedChip === connection.id}
+                    onSelect={() => setSelectedChip(connection.id)}
+                    onGenerateQR={() => handleGenerateQRCode(connection.name, connection.phone || '')}
+                    onChipUpdated={handleChipCreated}
+                  />
+                ))}
                 
                 {/* Add New Chip Card */}
                 <Card 
                   className="border-dashed border-2 hover:border-primary/50 transition-all duration-300 cursor-pointer group hover:scale-105"
-                  onClick={() => setCreateChipModalOpen(true)}
+                  onClick={() => setActiveTab("apis")}
                 >
                   <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground group-hover:text-primary transition-colors">
                     <Plus className="w-12 h-12 mb-4 group-hover:scale-110 transition-transform duration-300" />

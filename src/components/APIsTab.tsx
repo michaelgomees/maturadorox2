@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, CheckCircle, XCircle, RefreshCw, Save, Plus, QrCode, Bot, Brain, Sparkles, Network, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useConnections } from "@/contexts/ConnectionsContext";
+import { QRCodeViewModal } from "@/components/QRCodeViewModal";
 
 interface EvolutionAPI {
   endpoint: string;
@@ -34,13 +36,7 @@ interface NgrokConfig {
   status: 'connected' | 'disconnected';
 }
 
-interface Connection {
-  id: string;
-  name: string;
-  status: 'active' | 'inactive';
-  qrCode?: string;
-  lastActive: string;
-}
+// Interface removida - usando a do contexto
 
 export const APIsTab = () => {
   const [evolutionAPI, setEvolutionAPI] = useState<EvolutionAPI>({
@@ -66,11 +62,12 @@ export const APIsTab = () => {
     status: 'disconnected'
   });
   
-  const [connections, setConnections] = useState<Connection[]>([]);
   const [isCreatingConnection, setIsCreatingConnection] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState('');
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({});
+  const [showQRModal, setShowQRModal] = useState<string | null>(null);
   const { toast } = useToast();
+  const { connections, addConnection, updateConnection, deleteConnection, syncWithEvolutionAPI } = useConnections();
 
   // Carregar dados do localStorage
   useEffect(() => {
@@ -89,10 +86,7 @@ export const APIsTab = () => {
       setNgrokConfig(JSON.parse(savedNgrokConfig));
     }
     
-    const savedConnections = localStorage.getItem('ox-api-connections');
-    if (savedConnections) {
-      setConnections(JSON.parse(savedConnections));
-    }
+    // Dados agora gerenciados pelo contexto
   }, []);
 
   // Salvar configurações
@@ -111,10 +105,7 @@ export const APIsTab = () => {
     localStorage.setItem('ox-ngrok-config', JSON.stringify(newConfig));
   };
 
-  const saveConnections = (newConnections: Connection[]) => {
-    setConnections(newConnections);
-    localStorage.setItem('ox-api-connections', JSON.stringify(newConnections));
-  };
+  // Função removida - usando contexto
 
   const handleSaveAPI = () => {
     if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
@@ -222,7 +213,7 @@ export const APIsTab = () => {
     }));
   };
 
-  const handleCreateConnection = () => {
+  const handleCreateConnection = async () => {
     if (!newConnectionName.trim()) {
       toast({
         title: "Erro",
@@ -241,45 +232,63 @@ export const APIsTab = () => {
       return;
     }
 
-    const connection: Connection = {
-      id: Date.now().toString(),
-      name: newConnectionName,
-      status: 'active',
-      qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(newConnectionName)}`,
-      lastActive: new Date().toISOString()
-    };
+    try {
+      const newConnection = addConnection({
+        name: newConnectionName,
+        status: 'inactive',
+        isActive: false,
+        conversationsCount: 0,
+        aiModel: 'ChatGPT'
+      });
 
-    saveConnections([...connections, connection]);
-    setNewConnectionName('');
-    setIsCreatingConnection(false);
-    
-    toast({
-      title: "Conexão criada",
-      description: `Conexão "${newConnectionName}" criada com QR Code gerado automaticamente.`
-    });
+      // Sincronizar com Evolution API e gerar QR Code
+      await syncWithEvolutionAPI(newConnection.id);
+      
+      setNewConnectionName('');
+      setIsCreatingConnection(false);
+      
+      toast({
+        title: "Conexão criada",
+        description: `Conexão "${newConnectionName}" criada e sincronizada com Evolution API.`
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao criar conexão",
+        description: "Falha na sincronização com Evolution API.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleToggleConnection = (id: string) => {
-    const updatedConnections = connections.map(conn => 
-      conn.id === id 
-        ? { 
-            ...conn, 
-            status: (conn.status === 'active' ? 'inactive' : 'active') as Connection['status'],
-            lastActive: new Date().toISOString()
-          }
-        : conn
-    );
-    saveConnections(updatedConnections);
+    const connection = connections.find(c => c.id === id);
+    if (connection) {
+      const newStatus = connection.isActive ? 'inactive' : 'active';
+      updateConnection(id, {
+        status: newStatus,
+        isActive: !connection.isActive
+      });
+      
+      toast({
+        title: `Conexão ${newStatus === 'active' ? 'ativada' : 'desativada'}`,
+        description: `${connection.name} foi ${newStatus === 'active' ? 'ativada' : 'desativada'}.`
+      });
+    }
   };
 
   const handleDeleteConnection = (id: string) => {
-    const updatedConnections = connections.filter(conn => conn.id !== id);
-    saveConnections(updatedConnections);
-    
-    toast({
-      title: "Conexão removida",
-      description: "Conexão deletada com sucesso."
-    });
+    const connection = connections.find(c => c.id === id);
+    if (connection && window.confirm(`Tem certeza que deseja excluir a conexão "${connection.name}"?`)) {
+      deleteConnection(id);
+      toast({
+        title: "Conexão removida",
+        description: "Conexão deletada com sucesso."
+      });
+    }
+  };
+
+  const handleShowQR = (connectionId: string) => {
+    setShowQRModal(connectionId);
   };
 
   const getStatusIcon = (status: EvolutionAPI['status']) => {
@@ -376,6 +385,15 @@ export const APIsTab = () => {
         </CardContent>
       </Card>
 
+      {/* QR Code Modal */}
+      {showQRModal && (
+        <QRCodeViewModal
+          open={!!showQRModal}
+          onOpenChange={() => setShowQRModal(null)}
+          connectionId={showQRModal}
+        />
+      )}
+
       {/* Connections Management */}
       <Card>
         <CardHeader>
@@ -414,7 +432,7 @@ export const APIsTab = () => {
                 </Button>
                 <Button onClick={handleCreateConnection}>
                   <QrCode className="w-4 h-4 mr-2" />
-                  Criar e Gerar QR
+                  Criar e Sincronizar
                 </Button>
               </div>
             </div>
@@ -436,38 +454,59 @@ export const APIsTab = () => {
             ) : (
               connections.map((connection) => (
                 <div key={connection.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <h4 className="font-medium">{connection.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Última atividade: {new Date(connection.lastActive).toLocaleString('pt-BR')}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <h4 className="font-medium">{connection.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {connection.phone} • {connection.conversationsCount} conversas
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Última atividade: {new Date(connection.lastActive).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Badge variant={connection.status === 'active' ? 'default' : connection.status === 'connecting' ? 'secondary' : 'outline'}>
+                          {connection.status === 'active' ? 'Ativo' : 
+                           connection.status === 'connecting' ? 'Conectando' : 
+                           connection.status === 'error' ? 'Erro' : 'Inativo'}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {connection.aiModel}
+                        </Badge>
+                      </div>
                     </div>
-                    <Badge variant={connection.status === 'active' ? 'default' : 'secondary'}>
-                      {connection.status === 'active' ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </div>
                   
-                  <div className="flex items-center gap-2">
-                    {connection.qrCode && (
-                      <Button variant="outline" size="sm">
-                        <QrCode className="w-4 h-4 mr-2" />
-                        Ver QR
+                    <div className="flex items-center gap-2">
+                      {connection.qrCode && (
+                        <Button variant="outline" size="sm" onClick={() => handleShowQR(connection.id)}>
+                          <QrCode className="w-4 h-4 mr-2" />
+                          Ver QR
+                        </Button>
+                      )}
+                      {!connection.qrCode && connection.status !== 'connecting' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => syncWithEvolutionAPI(connection.id)}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Sincronizar
+                        </Button>
+                      )}
+                      <Switch
+                        checked={connection.isActive}
+                        onCheckedChange={() => handleToggleConnection(connection.id)}
+                        disabled={connection.status === 'connecting'}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteConnection(connection.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Remover
                       </Button>
-                    )}
-                    <Switch
-                      checked={connection.status === 'active'}
-                      onCheckedChange={() => handleToggleConnection(connection.id)}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteConnection(connection.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      Remover
-                    </Button>
-                  </div>
+                    </div>
                 </div>
               ))
             )}
