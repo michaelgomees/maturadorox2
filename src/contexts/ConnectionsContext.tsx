@@ -129,30 +129,41 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const connection = getConnection(connectionId);
     if (!connection) return;
 
-    // Simular integração com Evolution API
     try {
-      // Aqui seria a integração real com Evolution API
+      // Verificar se Evolution API está configurada
       const evolutionAPI = JSON.parse(localStorage.getItem('ox-evolution-api') || '{}');
       
       if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
         throw new Error('Evolution API não configurada');
       }
 
-      // Simular criação de instância
+      // Atualizar status para conectando
       updateConnection(connectionId, {
         status: 'connecting'
       });
 
-      // Simular delay da API
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Chamar Edge Function para criar instância na Evolution API
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          instanceName: connection.evolutionInstanceName,
+          connectionName: connection.name
+        }
+      });
 
-      // Simular geração de QR Code
-      const qrCodeData = `evolution-${connection.evolutionInstanceName}-${Date.now()}`;
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
+      if (error) {
+        throw new Error(`Erro na Edge Function: ${error.message}`);
+      }
 
+      if (!data.success) {
+        throw new Error(data.error || 'Falha na criação da instância');
+      }
+
+      // Atualizar conexão com QR Code real da Evolution API
       updateConnection(connectionId, {
         status: 'active',
-        qrCode: qrCodeUrl,
+        qrCode: data.qrCode,
         isActive: true
       });
 
