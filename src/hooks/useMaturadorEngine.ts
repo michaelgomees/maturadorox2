@@ -109,6 +109,10 @@ export const useMaturadorEngine = () => {
   // Processar conversa de um par de chips
   const processChipPairConversation = useCallback(async (pair: ChipPair) => {
     try {
+      console.log(`=== PROCESSANDO CONVERSA ===`);
+      console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+      console.log('Par ativo?', pair.isActive);
+      console.log('Status do par:', pair.status);
       // Buscar prompt global
       const savedPrompts = localStorage.getItem('ox-ai-prompts');
       let globalPrompt = 'Participe de uma conversa natural e engajante.';
@@ -197,27 +201,45 @@ export const useMaturadorEngine = () => {
 
   // Iniciar maturador
   const startMaturador = useCallback(() => {
-    console.log('Iniciando maturador...');
+    console.log('=== INICIANDO MATURADOR ===');
+    console.log('Total de pares:', chipPairs.length);
+    console.log('Pares configurados:', chipPairs);
+    
+    const activePairs = chipPairs.filter(pair => pair.isActive && pair.status !== 'paused');
+    console.log('Pares ativos encontrados:', activePairs.length, activePairs);
+    
+    if (activePairs.length === 0) {
+      console.warn('Nenhum par ativo encontrado!');
+      return;
+    }
+    
     setIsRunning(true);
     
     // Iniciar conversas para cada par ativo
-    chipPairs.forEach(pair => {
-      if (pair.isActive && pair.status !== 'paused') {
-        // Primeira mensagem imediata
-        setTimeout(() => processChipPairConversation(pair), 1000);
-        
-        // Configurar intervalo para mensagens regulares (a cada 10-30 segundos)
-        const interval = setInterval(() => {
-          processChipPairConversation(pair);
-        }, Math.random() * 20000 + 10000); // 10-30 segundos
-        
-        intervalRefs.current.set(pair.id, interval);
-      }
+    activePairs.forEach((pair, index) => {
+      console.log(`Configurando par ${index + 1}:`, pair.firstChipName, '<->', pair.secondChipName);
+      
+      // Primeira mensagem imediata
+      const immediateTimeout = setTimeout(async () => {
+        console.log(`Executando primeira mensagem para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+        await processChipPairConversation(pair);
+      }, 1000 + (index * 500)); // Espaçar as primeiras mensagens
+      
+      // Configurar intervalo para mensagens regulares
+      const interval = setInterval(async () => {
+        console.log(`Executando mensagem periódica para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+        await processChipPairConversation(pair);
+      }, Math.random() * 20000 + 10000); // 10-30 segundos
+      
+      intervalRefs.current.set(pair.id, interval);
+      console.log(`Intervalo configurado para par ${pair.id}`);
     });
+
+    console.log('Total de intervalos ativos:', intervalRefs.current.size);
 
     toast({
       title: "Maturador Iniciado",
-      description: "Sistema de conversas automáticas ativado",
+      description: `Sistema ativado para ${activePairs.length} pares`,
     });
   }, [chipPairs, processChipPairConversation, toast]);
 
