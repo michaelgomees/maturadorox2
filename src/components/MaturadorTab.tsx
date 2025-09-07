@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Play, Pause, Square, Users, MessageCircle, ArrowRight, Settings, Activity, Wifi, WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useConnections } from "@/contexts/ConnectionsContext";
 
 interface ChipPair {
   id: string;
@@ -34,41 +35,8 @@ interface ActiveConnection {
   platform: string;
 }
 
-// Hook para buscar conexões ativas do banco de dados
-const useActiveConnections = () => {
-  const [connections, setConnections] = useState<ActiveConnection[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchActiveConnections = async () => {
-      try {
-        // TODO: Substituir por query real do Supabase quando conectado
-        // const { data } = await supabase.from('connections').select('*').eq('status', 'connected');
-        
-        // Dados reais do banco - sem dados de demonstração
-        const mockConnections: ActiveConnection[] = [];
-        
-        setConnections(mockConnections);
-      } catch (error) {
-        console.error('Erro ao buscar conexões ativas:', error);
-        setConnections([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchActiveConnections();
-    
-    // Atualizar a cada 30 segundos
-    const interval = setInterval(fetchActiveConnections, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return { connections, loading };
-};
-
 export const MaturadorTab = () => {
-  const { connections, loading } = useActiveConnections();
+  const { connections: whatsappConnections } = useConnections();
   const [config, setConfig] = useState<MaturadorConfig>({
     isRunning: false,
     selectedPairs: [],
@@ -227,10 +195,23 @@ export const MaturadorTab = () => {
   };
 
   const getAvailableChipsForSecond = (selectedFirst: string) => {
-    return connections.filter(connection => 
-      connection.status === 'connected' && connection.name !== selectedFirst
+    return whatsappConnections.filter(connection => 
+      connection.status === 'active' && connection.name !== selectedFirst
     );
   };
+
+  // Converter conexões do WhatsApp para formato do maturador
+  const activeConnections: ActiveConnection[] = whatsappConnections
+    .filter(conn => conn.status === 'active')
+    .map(conn => ({
+      id: conn.id,
+      name: conn.name,
+      status: 'connected' as const,
+      lastSeen: conn.lastActive,
+      platform: 'WhatsApp'
+    }));
+
+  const loading = false;
 
   return (
     <div className="space-y-6">
@@ -332,10 +313,10 @@ export const MaturadorTab = () => {
                   <SelectContent>
                     {loading ? (
                       <SelectItem value="loading" disabled>Carregando conexões...</SelectItem>
-                    ) : connections.filter(conn => conn.status === 'connected').length === 0 ? (
+                    ) : activeConnections.length === 0 ? (
                       <SelectItem value="no-connections" disabled>Nenhuma conexão ativa</SelectItem>
                     ) : (
-                      connections.filter(conn => conn.status === 'connected').map(connection => (
+                      activeConnections.map(connection => (
                         <SelectItem key={connection.id} value={connection.name}>
                           <div className="flex items-center gap-2">
                             <Wifi className="w-3 h-3 text-green-500" />
@@ -370,11 +351,11 @@ export const MaturadorTab = () => {
                       <SelectItem value="no-available" disabled>Nenhuma conexão disponível</SelectItem>
                     ) : (
                       getAvailableChipsForSecond(newPair.chip1).map(connection => (
-                        <SelectItem key={connection.id} value={connection.name}>
+                        <SelectItem key={connection.name} value={connection.name}>
                           <div className="flex items-center gap-2">
                             <Wifi className="w-3 h-3 text-green-500" />
                             {connection.name}
-                            <Badge variant="outline" className="text-xs">{connection.platform}</Badge>
+                            <Badge variant="outline" className="text-xs">WhatsApp</Badge>
                           </div>
                         </SelectItem>
                       ))
