@@ -48,7 +48,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const { data, error } = await supabase
         .from('saas_conexoes')
         .select('*')
-        .eq('status', 'ativo');
+        .in('status', ['ativo', 'inativo']);
 
       if (error) {
         console.error('Erro ao carregar conexões:', error);
@@ -77,6 +77,9 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const saveConnectionToSupabase = async (connection: WhatsAppConnection, isUpdate = false) => {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const connectionData = {
         nome: connection.name,
         status: connection.status === 'active' ? 'ativo' : 'inativo',
@@ -87,7 +90,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         conversas_count: connection.conversationsCount,
         modelo_ia: connection.aiModel,
         config: {},
-        usuario_id: null // Permitir null para usuario_id
+        usuario_id: user?.id || null
       };
 
       if (isUpdate) {
