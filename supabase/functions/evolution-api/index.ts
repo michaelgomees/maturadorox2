@@ -65,7 +65,6 @@ serve(async (req) => {
             instanceName: instanceName,
             token: apiKey,
             qrcode: true,
-            number: false,
             typebot: false,
             webhook_wa_business: false
           })
