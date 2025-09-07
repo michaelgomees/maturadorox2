@@ -16,6 +16,7 @@ import { APIsTab } from "@/components/APIsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
+import { ProtectedRoute } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
 
@@ -43,8 +44,9 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
-      <Header />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted">
+        <Header />
       
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
@@ -270,7 +272,8 @@ const Index = () => {
         open={analyticsModalOpen}
         onOpenChange={setAnalyticsModalOpen}
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 };
 

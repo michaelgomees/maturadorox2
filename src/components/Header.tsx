@@ -15,13 +15,31 @@ import { AlertsPanel } from "./AlertsPanel";
 import { SystemConfigModal } from "./SystemConfigModal";
 import { ProfileModal } from "./ProfileModal";
 import { useConnections } from "@/contexts/ConnectionsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import oxLogo from "@/assets/ox-logo.png";
 
 export const Header = () => {
   const { toast } = useToast();
   const { activeConnectionsCount } = useConnections();
+  const { user, signOut } = useAuth();
   const [systemConfigOpen, setSystemConfigOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Logout realizado",
+        description: "Você foi desconectado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao fazer logout.",
+        variant: "destructive"
+      });
+    }
+  };
   return (
     <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50 sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4">
@@ -71,9 +89,11 @@ export const Header = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <div className="flex flex-col space-y-1 p-2">
-                  <p className="text-sm font-medium leading-none">Usuário Demo</p>
+                  <p className="text-sm font-medium leading-none">
+                    {user?.user_metadata?.full_name || 'Usuário'}
+                  </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    demo@oxmaturador.com
+                    {user?.email}
                   </p>
                 </div>
                 <DropdownMenuSeparator />
@@ -88,11 +108,7 @@ export const Header = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="text-destructive"
-                  onClick={() => toast({
-                    title: "Logout",
-                    description: "Sistema de autenticação será implementado com Supabase.",
-                    variant: "destructive"
-                  })}
+                  onClick={handleLogout}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair</span>
