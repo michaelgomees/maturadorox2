@@ -28,7 +28,7 @@ export type Database = {
           status: string
           telefone: string | null
           updated_at: string
-          usuario_id: string
+          usuario_id: string | null
         }
         Insert: {
           config?: Json | null
@@ -43,7 +43,7 @@ export type Database = {
           status?: string
           telefone?: string | null
           updated_at?: string
-          usuario_id: string
+          usuario_id?: string | null
         }
         Update: {
           config?: Json | null
@@ -58,7 +58,7 @@ export type Database = {
           status?: string
           telefone?: string | null
           updated_at?: string
-          usuario_id?: string
+          usuario_id?: string | null
         }
         Relationships: []
       }
