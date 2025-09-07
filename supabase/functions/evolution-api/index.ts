@@ -41,7 +41,7 @@ serve(async (req) => {
 
       // Usar dados dos secrets configurados
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
-      const endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
       if (!apiKey) {
         throw new Error('Evolution API key not configured in secrets')
@@ -49,6 +49,11 @@ serve(async (req) => {
       
       if (!endpoint) {
         throw new Error('Evolution API endpoint not configured in secrets')
+      }
+
+      // Garantir que o endpoint tenha o protocolo HTTPS
+      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
       }
 
       console.log(`Creating Evolution API instance: ${instanceName} for connection: ${connectionName}`)
@@ -59,11 +64,18 @@ serve(async (req) => {
         // Create instance in Evolution API
         console.log(`Making request to: ${endpoint}/instance/create`)
         
-        // Payload simplificado baseado na documentação da Evolution API
+        // Payload baseado na documentação da Evolution API
         const payload = {
           instanceName: instanceName,
           token: apiKey,
-          qrcode: true
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS",
+          webhookUrl: "",
+          webhookByEvents: false,
+          webhookBase64: false,
+          markMessagesRead: true,
+          markPresence: true,
+          syncFullHistory: false
         };
 
         console.log(`Using payload:`, JSON.stringify(payload, null, 2));
@@ -92,28 +104,34 @@ serve(async (req) => {
         // Wait a moment for instance to initialize
         await new Promise(resolve => setTimeout(resolve, 2000))
 
-        // Connect to WhatsApp (get QR code)
-        console.log(`Making connect request to: ${endpoint}/instance/connect/${instanceName}`)
-        const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+        // Buscar QR Code da instância criada
+        console.log(`Making QR request to: ${endpoint}/instance/connect/${instanceName}`)
+        
+        // Aguardar um pouco para a instância inicializar
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        
+        const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {
             'apikey': apiKey
           }
         })
 
-        console.log(`Connect response status: ${connectResponse.status}`)
-        if (!connectResponse.ok) {
-          const errorText = await connectResponse.text()
-          console.error(`Evolution API connect failed: ${connectResponse.status} - ${errorText}`)
-          throw new Error(`Evolution API connect failed: ${connectResponse.status} - ${errorText}`)
+        console.log(`QR response status: ${qrResponse.status}`)
+        
+        let qrCode = null;
+        
+        if (qrResponse.ok) {
+          const qrData = await qrResponse.json()
+          console.log('QR response:', qrData)
+          qrCode = qrData.base64 || qrData.qrcode || qrData.code;
+        } else {
+          console.log('QR not ready yet, will be generated on next request')
         }
-
-        const connectData = await connectResponse.json()
-        console.log('Connect response:', connectData)
 
         const response: EvolutionAPIResponse = {
           success: true,
-          qrCode: connectData.base64 || connectData.qrcode,
+          qrCode: qrCode,
           instanceName: instanceName
         }
 
@@ -165,7 +183,7 @@ serve(async (req) => {
 
       // Usar dados dos secrets configurados
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
-      const endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
       if (!apiKey) {
         throw new Error('Evolution API key not configured in secrets')
@@ -174,9 +192,15 @@ serve(async (req) => {
       if (!endpoint) {
         throw new Error('Evolution API endpoint not configured in secrets')
       }
+
+      // Garantir que o endpoint tenha o protocolo HTTPS
+      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
+      }
       
       try {
         // Get QR code from Evolution API
+        console.log(`Fetching QR from: ${endpoint}/instance/connect/${instanceName}`)
         const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {

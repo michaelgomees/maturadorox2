@@ -209,10 +209,9 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const createEvolutionInstance = async (connection: WhatsAppConnection): Promise<void> => {
     try {
-      console.log(`Calling Evolution API for instance: ${connection.evolutionInstanceName}`);
+      console.log(`Creating Evolution API instance: ${connection.evolutionInstanceName}`);
       
       // Chamar Edge Function para criar instância na Evolution API
-      // Os dados de API key e endpoint estão configurados nos secrets do Supabase
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
           instanceName: connection.evolutionInstanceName,
@@ -225,14 +224,18 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw new Error(`Erro na Edge Function: ${error.message}`);
       }
 
-      if (!data.success) {
-        console.error('Falha na criação da instância:', data.error);
-        throw new Error(data.error || 'Falha na criação da instância');
+      if (!data || !data.success) {
+        console.error('Falha na criação da instância:', data?.error);
+        throw new Error(data?.error || 'Falha na criação da instância na Evolution API');
       }
 
-      // Atualizar conexão com dados da Evolution API apenas se foi bem-sucedida
+      console.log('Instância criada com sucesso:', data);
+
+      // Atualizar conexão com dados da Evolution API
       connection.qrCode = data.qrCode;
       connection.evolutionInstanceId = data.instanceName;
+      
+      return data;
 
     } catch (error) {
       console.error('Erro ao criar instância Evolution:', error);
@@ -250,8 +253,9 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         status: 'connecting'
       });
 
-      // Buscar QR Code atualizado da instância usando os secrets configurados
-      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${connection.evolutionInstanceName}`;
+      // Buscar QR Code atualizado da instância usando a Edge Function
+      const instanceName = connection.evolutionInstanceName || connection.name.toLowerCase().replace(/\s+/g, '_');
+      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}`;
 
       const response = await fetch(evolutionApiUrl, {
         method: 'GET',
@@ -264,12 +268,15 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const data = await response.json();
 
       if (!response.ok) {
+        console.error('Erro na Edge Function:', data);
         throw new Error(`Erro na Edge Function: ${response.statusText}`);
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Falha ao buscar QR Code');
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Falha ao buscar QR Code da Evolution API');
       }
+
+      console.log('QR Code obtido:', data);
 
       // Atualizar conexão com QR Code atualizado
       await updateConnection(connectionId, {
@@ -279,6 +286,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
 
     } catch (error) {
+      console.error('Erro ao sincronizar com Evolution API:', error);
       await updateConnection(connectionId, {
         status: 'error'
       });
