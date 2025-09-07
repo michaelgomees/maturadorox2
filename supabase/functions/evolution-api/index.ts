@@ -46,12 +46,15 @@ serve(async (req) => {
       }
 
       console.log(`Creating Evolution API instance: ${instanceName} for connection: ${connectionName}`)
+      console.log(`Using endpoint: ${evolutionEndpoint}`)
+      console.log(`Using API key: ${apiKey ? 'Present' : 'Missing'}`)
 
       // Get Evolution API endpoint from request or environment
       const endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
       
       try {
         // Create instance in Evolution API
+        console.log(`Making request to: ${endpoint}/instance/create`)
         const createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
           method: 'POST',
           headers: {
@@ -68,8 +71,13 @@ serve(async (req) => {
           })
         })
 
+        console.log(`Create instance response status: ${createInstanceResponse.status}`)
+        console.log(`Create instance response headers:`, Object.fromEntries(createInstanceResponse.headers.entries()))
+
         if (!createInstanceResponse.ok) {
-          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status}`)
+          const errorText = await createInstanceResponse.text()
+          console.error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
+          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
         }
 
         const instanceData = await createInstanceResponse.json()
@@ -79,6 +87,7 @@ serve(async (req) => {
         await new Promise(resolve => setTimeout(resolve, 2000))
 
         // Connect to WhatsApp (get QR code)
+        console.log(`Making connect request to: ${endpoint}/instance/connect/${instanceName}`)
         const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {
@@ -86,8 +95,11 @@ serve(async (req) => {
           }
         })
 
+        console.log(`Connect response status: ${connectResponse.status}`)
         if (!connectResponse.ok) {
-          throw new Error(`Evolution API connect failed: ${connectResponse.status}`)
+          const errorText = await connectResponse.text()
+          console.error(`Evolution API connect failed: ${connectResponse.status} - ${errorText}`)
+          throw new Error(`Evolution API connect failed: ${connectResponse.status} - ${errorText}`)
         }
 
         const connectData = await connectResponse.json()
