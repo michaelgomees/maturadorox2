@@ -23,7 +23,6 @@ interface ChipPair {
 interface MaturadorConfig {
   isRunning: boolean;
   selectedPairs: ChipPair[];
-  conversationInterval: number;
   maxMessagesPerSession: number;
   useBasePrompt: boolean;
 }
@@ -74,7 +73,6 @@ export const MaturadorTab = () => {
   const [config, setConfig] = useState<MaturadorConfig>({
     isRunning: false,
     selectedPairs: [],
-    conversationInterval: 30,
     maxMessagesPerSession: 10,
     useBasePrompt: true
   });
@@ -408,24 +406,7 @@ export const MaturadorTab = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Intervalo entre mensagens (segundos)</Label>
-              <Select 
-                value={config.conversationInterval.toString()} 
-                onValueChange={(value) => saveConfig({ ...config, conversationInterval: parseInt(value) })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 segundos</SelectItem>
-                  <SelectItem value="30">30 segundos</SelectItem>
-                  <SelectItem value="60">1 minuto</SelectItem>
-                  <SelectItem value="120">2 minutos</SelectItem>
-                  <SelectItem value="300">5 minutos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Configuração de intervalo removida - será controlada via prompt */}
             
             <div className="space-y-2">
               <Label>Máximo de mensagens por sessão</Label>

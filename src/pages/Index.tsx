@@ -16,33 +16,7 @@ import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
 
-// Mock data para demonstração
-const mockChips = [
-  {
-    id: "1",
-    name: "Alex Marketing",
-    status: "active" as const,
-    aiModel: "ChatGPT",
-    conversations: 47,
-    lastActive: "2 min atrás"
-  },
-  {
-    id: "2", 
-    name: "Sofia Suporte",
-    status: "active" as const,
-    aiModel: "Claude",
-    conversations: 23,
-    lastActive: "5 min atrás"
-  },
-  {
-    id: "3",
-    name: "João Vendas",
-    status: "idle" as const,
-    aiModel: "Gemini",
-    conversations: 12,
-    lastActive: "1h atrás"
-  }
-];
+// Dados reais - sem demonstração
 
 const Index = () => {
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
@@ -124,27 +98,27 @@ const Index = () => {
             {/* Stats Overview */}
             <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <StatsCard 
-                title="Chips Ativos"
-                value="2"
-                description="+1 esta semana"
+                title="Conexões Ativas"
+                value="0"
+                description="Configure suas primeiras conexões"
                 icon={<Bot className="w-5 h-5 text-primary" />}
               />
               <StatsCard 
                 title="Conversas Hoje"
-                value="89"
-                description="+12% vs ontem"
+                value="0"
+                description="Aguardando ativação"
                 icon={<MessageCircle className="w-5 h-5 text-secondary" />}
               />
               <StatsCard 
                 title="Taxa de Resposta"
-                value="94%"
-                description="Média 7 dias"
+                value="0%"
+                description="Sem dados ainda"
                 icon={<Zap className="w-5 h-5 text-accent" />}
               />
               <StatsCard 
-                title="Eficiência IA"
-                value="98.2%"
-                description="Uptime mensal"
+                title="Sistema"
+                value="Pronto"
+                description="Configuração inicial"
                 icon={<Settings className="w-5 h-5 text-primary" />}
               />
             </section>
@@ -154,22 +128,13 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-semibold">Minhas Conexões</h2>
                 <div className="flex gap-2">
-                  <Badge variant="secondary">3 Total</Badge>
-                  <Badge variant="outline" className="text-secondary">2 Ativos</Badge>
+                  <Badge variant="secondary">0 Total</Badge>
+                  <Badge variant="outline" className="text-secondary">0 Ativas</Badge>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {mockChips.map((chip) => (
-                 <ChipCard
-                    key={chip.id}
-                    chip={chip}
-                    isSelected={selectedChip === chip.id}
-                    onSelect={() => setSelectedChip(chip.id)}
-                    onGenerateQR={() => handleGenerateQRCode(chip.name, "+5511999999999")}
-                    onChipUpdated={handleChipCreated}
-                  />
-                ))}
+                {/* Sem conexões por enquanto - dados reais apenas */}
                 
                 {/* Add New Chip Card */}
                 <Card 
