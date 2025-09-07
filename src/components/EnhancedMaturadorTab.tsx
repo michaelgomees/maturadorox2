@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Play, Pause, Square, Users, MessageCircle, ArrowRight, Settings, Activity, Star, Brain } from "lucide-react";
+import { Play, Pause, Square, Users, MessageCircle, ArrowRight, Settings, Activity, Star, Brain, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ChipPair {
@@ -37,13 +37,16 @@ interface AIPrompt {
   isGlobal?: boolean;
 }
 
-const AVAILABLE_CHIPS = [
-  'Alex Marketing',
-  'Sofia Suporte', 
-  'João Vendas',
-  'Ana Atendimento',
-  'Carlos Técnico'
-];
+// Função para buscar conexões ativas do localStorage
+const getActiveConnections = () => {
+  const savedConfigs = localStorage.getItem('ox-chip-configs');
+  if (!savedConfigs) return [];
+  
+  const configs = JSON.parse(savedConfigs);
+  return configs
+    .filter((config: any) => config.status === 'active')
+    .map((config: any) => config.name);
+};
 
 
 export const EnhancedMaturadorTab = () => {
@@ -58,6 +61,7 @@ export const EnhancedMaturadorTab = () => {
     chip1: '',
     chip2: ''
   });
+  const [activeConnections, setActiveConnections] = useState<string[]>([]);
   
   const { toast } = useToast();
 
@@ -72,6 +76,9 @@ export const EnhancedMaturadorTab = () => {
     if (savedPrompts) {
       setAvailablePrompts(JSON.parse(savedPrompts));
     }
+
+    // Carregar conexões ativas
+    setActiveConnections(getActiveConnections());
   }, []);
 
   // Salvar configuração no localStorage
@@ -239,7 +246,7 @@ export const EnhancedMaturadorTab = () => {
   };
 
   const getAvailableChipsForSecond = (selectedFirst: string) => {
-    return AVAILABLE_CHIPS.filter(chip => chip !== selectedFirst);
+    return activeConnections.filter(chip => chip !== selectedFirst);
   };
 
 
@@ -323,74 +330,99 @@ export const EnhancedMaturadorTab = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Configuração de Duplas */}
+      {activeConnections.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Configuração de Duplas */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurar Nova Dupla</CardTitle>
+              <CardDescription>
+                Selecione duas conexões que irão conversar entre si
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Primeira Conexão</Label>
+                  <Select 
+                    value={newPair.chip1} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, chip1: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a primeira conexão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeConnections.map(chip => (
+                        <SelectItem key={chip} value={chip}>
+                          {chip}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex justify-center">
+                  <ArrowRight className="w-6 h-6 text-muted-foreground" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Segunda Conexão</Label>
+                  <Select 
+                    value={newPair.chip2} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, chip2: value }))}
+                    disabled={!newPair.chip1}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a segunda conexão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableChipsForSecond(newPair.chip1).map(chip => (
+                        <SelectItem key={chip} value={chip}>
+                          {chip}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={handleAddPair}
+                disabled={!newPair.chip1 || !newPair.chip2}
+                className="w-full"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Adicionar Dupla
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
         <Card>
-          <CardHeader>
-            <CardTitle>Configurar Nova Dupla</CardTitle>
-            <CardDescription>
-              Selecione dois chips que irão conversar entre si
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Primeiro Chip</Label>
-                <Select 
-                  value={newPair.chip1} 
-                  onValueChange={(value) => setNewPair(prev => ({ ...prev, chip1: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o primeiro chip" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AVAILABLE_CHIPS.map(chip => (
-                      <SelectItem key={chip} value={chip}>
-                        {chip}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex justify-center">
-                <ArrowRight className="w-6 h-6 text-muted-foreground" />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Segundo Chip</Label>
-                <Select 
-                  value={newPair.chip2} 
-                  onValueChange={(value) => setNewPair(prev => ({ ...prev, chip2: value }))}
-                  disabled={!newPair.chip1}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o segundo chip" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableChipsForSecond(newPair.chip1).map(chip => (
-                      <SelectItem key={chip} value={chip}>
-                        {chip}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
+          <CardContent className="text-center py-12">
+            <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhuma Conexão Ativa</h3>
+            <p className="text-muted-foreground mb-4">
+              Para usar o maturador, você precisa ter pelo menos duas conexões ativas.
+            </p>
             <Button 
-              onClick={handleAddPair}
-              disabled={!newPair.chip1 || !newPair.chip2}
-              className="w-full"
+              onClick={() => {
+                // Navegar para a aba dashboard para criar conexões
+                window.dispatchEvent(new CustomEvent('navigate-to-dashboard'));
+              }}
+              variant="outline"
             >
-              <Users className="w-4 h-4 mr-2" />
-              Adicionar Dupla
+              <Plus className="w-4 h-4 mr-2" />
+              Criar Conexões
             </Button>
           </CardContent>
         </Card>
+      )}
 
-        {/* Configurações do Maturador */}
-        <Card>
+      {activeConnections.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Configurações do Maturador */}
+          <Card>
           <CardHeader>
             <CardTitle>Configurações do Maturador</CardTitle>
             <CardDescription>
@@ -434,9 +466,11 @@ export const EnhancedMaturadorTab = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
       {/* Lista de Duplas Configuradas */}
+      {activeConnections.length > 0 && (
       <Card>
         <CardHeader>
           <CardTitle>Duplas Configuradas ({config.selectedPairs.length})</CardTitle>
@@ -567,6 +601,7 @@ export const EnhancedMaturadorTab = () => {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };

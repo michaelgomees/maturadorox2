@@ -112,7 +112,7 @@ const Index = () => {
               <div className="flex gap-4 justify-center">
                 <Button size="lg" onClick={() => setCreateChipModalOpen(true)} className="hover:bg-primary/90 hover:scale-105 transition-all duration-300">
                   <Plus className="w-5 h-5 mr-2" />
-                  Criar Novo Chip
+                  Nova Conexão
                 </Button>
                 <Button size="lg" variant="outline" className="hover:bg-secondary/10 hover:border-secondary transition-all duration-300" onClick={() => setAnalyticsModalOpen(true)}>
                   <BarChart3 className="w-5 h-5 mr-2" />
@@ -152,7 +152,7 @@ const Index = () => {
             {/* Chips Grid */}
             <section className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-semibold">Meus Chips</h2>
+                <h2 className="text-2xl font-semibold">Minhas Conexões</h2>
                 <div className="flex gap-2">
                   <Badge variant="secondary">3 Total</Badge>
                   <Badge variant="outline" className="text-secondary">2 Ativos</Badge>
@@ -178,7 +178,7 @@ const Index = () => {
                 >
                   <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground group-hover:text-primary transition-colors">
                     <Plus className="w-12 h-12 mb-4 group-hover:scale-110 transition-transform duration-300" />
-                    <h3 className="font-semibold">Criar Novo Chip</h3>
+                    <h3 className="font-semibold">Nova Conexão</h3>
                     <p className="text-sm text-center">Configure uma nova instância conversacional</p>
                   </CardContent>
                 </Card>
