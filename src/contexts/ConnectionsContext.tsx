@@ -77,9 +77,6 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const saveConnectionToSupabase = async (connection: WhatsAppConnection, isUpdate = false) => {
     try {
-      // Verificar se o usuário está autenticado
-      const { data: { user } } = await supabase.auth.getUser();
-      
       const connectionData = {
         nome: connection.name,
         status: connection.status === 'active' ? 'ativo' : 'inativo',
@@ -90,7 +87,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         conversas_count: connection.conversationsCount,
         modelo_ia: connection.aiModel,
         config: {},
-        usuario_id: user?.id || '00000000-0000-0000-0000-000000000000' // Usar ID do usuário autenticado ou fallback
+        usuario_id: null // Permitir null para usuario_id
       };
 
       if (isUpdate) {

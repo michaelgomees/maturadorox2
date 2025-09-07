@@ -488,16 +488,15 @@ export const APIsTab = () => {
                           Ver QR
                         </Button>
                       )}
-                      {!connection.qrCode && connection.status !== 'connecting' && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => syncWithEvolutionAPI(connection.id)}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Sincronizar
-                        </Button>
-                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleShowQR(connection.id)}
+                        disabled={!connection.qrCode}
+                      >
+                        <QrCode className="w-4 h-4 mr-2" />
+                        Ver QR Code
+                      </Button>
                       <Switch
                         checked={connection.isActive}
                         onCheckedChange={() => handleToggleConnection(connection.id)}
