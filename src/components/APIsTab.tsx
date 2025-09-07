@@ -223,19 +223,10 @@ export const APIsTab = () => {
       return;
     }
 
-    if (evolutionAPI.status !== 'connected') {
-      toast({
-        title: "Erro",
-        description: "Configure e teste a Evolution API primeiro.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       const newConnection = await addConnection({
         name: newConnectionName,
-        status: 'inactive',
+        status: 'connecting',
         isActive: false,
         conversationsCount: 0,
         aiModel: 'ChatGPT'
@@ -245,13 +236,14 @@ export const APIsTab = () => {
       setIsCreatingConnection(false);
       
       toast({
-        title: "Conexão criada",
-        description: `Conexão "${newConnectionName}" criada e instância Evolution configurada.`
+        title: "Conexão criada com sucesso!",
+        description: `Conexão "${newConnectionName}" foi criada. O QR Code será gerado automaticamente.`
       });
     } catch (error) {
+      console.error('Erro ao criar conexão:', error);
       toast({
         title: "Erro ao criar conexão",
-        description: "Falha na sincronização com Evolution API.",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive"
       });
     }
@@ -409,10 +401,9 @@ export const APIsTab = () => {
                 Gerencie conexões que usam a configuração global da Evolution API
               </CardDescription>
             </div>
-            <Button 
-              onClick={() => setIsCreatingConnection(true)}
-              disabled={evolutionAPI.status !== 'connected'}
-            >
+             <Button 
+               onClick={() => setIsCreatingConnection(true)}
+             >
               <Plus className="w-4 h-4 mr-2" />
               Nova Conexão
             </Button>
@@ -436,8 +427,8 @@ export const APIsTab = () => {
                   Cancelar
                 </Button>
                 <Button onClick={handleCreateConnection}>
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Criar e Sincronizar
+                  <Plus className="w-4 h-4 mr-2" />
+                  Criar Conexão
                 </Button>
               </div>
             </div>
@@ -452,7 +443,7 @@ export const APIsTab = () => {
                 <p className="text-sm text-muted-foreground">
                   {evolutionAPI.status === 'connected' 
                     ? "Crie sua primeira conexão WhatsApp"
-                    : "Configure a Evolution API primeiro para criar conexões"
+                    : "Configure a Evolution API primeiro para obter QR Codes"
                   }
                 </p>
               </div>

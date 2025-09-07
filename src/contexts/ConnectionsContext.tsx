@@ -132,11 +132,19 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     try {
-      // Criar instância na Evolution API automaticamente
-      await createEvolutionInstance(newConnection);
-      
-      // Salvar no Supabase
+      // Salvar no Supabase primeiro
       await saveConnectionToSupabase(newConnection);
+      
+      // Tentar criar instância na Evolution API se estiver configurada
+      try {
+        await createEvolutionInstance(newConnection);
+      } catch (error) {
+        console.warn('Erro ao criar instância Evolution, conexão criada sem QR:', error);
+        // Atualizar status para ativo mesmo sem Evolution API
+        newConnection.status = 'active';
+        newConnection.isActive = true;
+        await saveConnectionToSupabase(newConnection, true);
+      }
       
       return newConnection;
     } catch (error) {
@@ -198,7 +206,8 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const evolutionAPI = JSON.parse(localStorage.getItem('ox-evolution-api') || '{}');
       
       if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
-        throw new Error('Evolution API não configurada');
+        console.warn('Evolution API não configurada, pulando criação de instância');
+        return;
       }
 
       // Chamar Edge Function para criar instância na Evolution API
@@ -212,10 +221,12 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
 
       if (error) {
+        console.error('Erro na Edge Function:', error);
         throw new Error(`Erro na Edge Function: ${error.message}`);
       }
 
       if (!data.success) {
+        console.error('Falha na criação da instância:', data.error);
         throw new Error(data.error || 'Falha na criação da instância');
       }
 
@@ -226,6 +237,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       connection.evolutionInstanceId = data.instanceName;
 
     } catch (error) {
+      console.error('Erro ao criar instância Evolution:', error);
       connection.status = 'error';
       throw error;
     }
