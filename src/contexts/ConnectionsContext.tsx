@@ -141,11 +141,15 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Tentar criar instância na Evolution API se estiver configurada
       try {
         await createEvolutionInstance(newConnection);
-      } catch (error) {
-        console.warn('Erro ao criar instância Evolution, conexão criada sem QR:', error);
-        // Atualizar status para ativo mesmo sem Evolution API
+        // Se chegou aqui, significa que foi criada com sucesso
         newConnection.status = 'active';
         newConnection.isActive = true;
+        await saveConnectionToSupabase(newConnection, true);
+      } catch (error) {
+        console.warn('Erro ao criar instância Evolution:', error);
+        // Manter status como inactive quando falha na Evolution API
+        newConnection.status = 'inactive';
+        newConnection.isActive = false;
         await saveConnectionToSupabase(newConnection, true);
       }
       
@@ -210,7 +214,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
         console.warn('Evolution API não configurada, pulando criação de instância');
-        return;
+        throw new Error('Evolution API não configurada');
       }
 
       // Chamar Edge Function para criar instância na Evolution API
@@ -233,15 +237,12 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw new Error(data.error || 'Falha na criação da instância');
       }
 
-      // Atualizar conexão com dados da Evolution API
-      connection.status = 'active';
+      // Atualizar conexão com dados da Evolution API apenas se foi bem-sucedida
       connection.qrCode = data.qrCode;
-      connection.isActive = true;
       connection.evolutionInstanceId = data.instanceName;
 
     } catch (error) {
       console.error('Erro ao criar instância Evolution:', error);
-      connection.status = 'error';
       throw error;
     }
   };

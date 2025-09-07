@@ -483,7 +483,7 @@ export const APIsTab = () => {
                         variant="outline" 
                         size="sm" 
                         onClick={() => handleShowQR(connection.id)}
-                        disabled={!connection.qrCode}
+                        disabled={connection.status === 'active' && !connection.qrCode}
                       >
                         <QrCode className="w-4 h-4 mr-2" />
                         Ver QR Code
