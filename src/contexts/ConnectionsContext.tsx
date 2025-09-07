@@ -209,21 +209,14 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const createEvolutionInstance = async (connection: WhatsAppConnection): Promise<void> => {
     try {
-      // Verificar se Evolution API está configurada
-      const evolutionAPI = JSON.parse(localStorage.getItem('ox-evolution-api') || '{}');
+      console.log(`Calling Evolution API for instance: ${connection.evolutionInstanceName}`);
       
-      if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
-        console.warn('Evolution API não configurada, pulando criação de instância');
-        throw new Error('Evolution API não configurada');
-      }
-
       // Chamar Edge Function para criar instância na Evolution API
+      // Os dados de API key e endpoint estão configurados nos secrets do Supabase
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
           instanceName: connection.evolutionInstanceName,
-          connectionName: connection.name,
-          evolutionEndpoint: evolutionAPI.endpoint.startsWith('http') ? evolutionAPI.endpoint : `https://${evolutionAPI.endpoint}`,
-          evolutionApiKey: evolutionAPI.apiKey
+          connectionName: connection.name
         }
       });
 
@@ -252,20 +245,13 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!connection) return;
 
     try {
-      // Verificar se Evolution API está configurada
-      const evolutionAPI = JSON.parse(localStorage.getItem('ox-evolution-api') || '{}');
-      
-      if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
-        throw new Error('Evolution API não configurada');
-      }
-
       // Atualizar status para conectando
       await updateConnection(connectionId, {
         status: 'connecting'
       });
 
-      // Buscar QR Code atualizado da instância
-      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${connection.evolutionInstanceName}&evolutionEndpoint=${encodeURIComponent(evolutionAPI.endpoint.startsWith('http') ? evolutionAPI.endpoint : `https://${evolutionAPI.endpoint}`)}&evolutionApiKey=${encodeURIComponent(evolutionAPI.apiKey)}`;
+      // Buscar QR Code atualizado da instância usando os secrets configurados
+      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${connection.evolutionInstanceName}`;
 
       const response = await fetch(evolutionApiUrl, {
         method: 'GET',

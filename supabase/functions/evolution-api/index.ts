@@ -39,83 +39,51 @@ serve(async (req) => {
         )
       }
 
-      // Usar API key passada na requisição ou fallback para variável de ambiente
-      const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
+      // Usar dados dos secrets configurados
+      const apiKey = Deno.env.get('EVOLUTION_API_KEY')
+      const endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+      
       if (!apiKey) {
-        throw new Error('Evolution API key not configured')
+        throw new Error('Evolution API key not configured in secrets')
+      }
+      
+      if (!endpoint) {
+        throw new Error('Evolution API endpoint not configured in secrets')
       }
 
       console.log(`Creating Evolution API instance: ${instanceName} for connection: ${connectionName}`)
-      console.log(`Using endpoint: ${evolutionEndpoint}`)
-      console.log(`Using API key: ${apiKey ? 'Present' : 'Missing'}`)
-
-      // Get Evolution API endpoint from request or environment
-      const endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
+      console.log(`Using configured endpoint: ${endpoint}`)
+      console.log(`Using configured API key: ${apiKey ? 'Present' : 'Missing'}`)
       
       try {
         // Create instance in Evolution API
         console.log(`Making request to: ${endpoint}/instance/create`)
         
-        // Testar diferentes formatos de payload
-        const payloads = [
-          // Formato 1: Mínimo
-          {
-            instanceName: instanceName
-          },
-          // Formato 2: Com token
-          {
-            instanceName: instanceName,
-            token: apiKey
-          },
-          // Formato 3: Completo sem webhook
-          {
-            instanceName: instanceName,
-            token: apiKey,
-            qrcode: true
-          },
-          // Formato 4: Completo original
-          {
-            instanceName: instanceName,
-            token: apiKey,
-            qrcode: true,
-            typebot: false,
-            webhook_wa_business: false
-          }
-        ];
+        // Payload simplificado baseado na documentação da Evolution API
+        const payload = {
+          instanceName: instanceName,
+          token: apiKey,
+          qrcode: true
+        };
 
-        let createInstanceResponse;
-        let successfulPayload;
+        console.log(`Using payload:`, JSON.stringify(payload, null, 2));
         
-        for (let i = 0; i < payloads.length; i++) {
-          console.log(`Tentativa ${i + 1} com payload:`, JSON.stringify(payloads[i], null, 2));
-          
-          createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': apiKey
-            },
-            body: JSON.stringify(payloads[i])
-          });
-
-          console.log(`Tentativa ${i + 1} - Status: ${createInstanceResponse.status}`);
-          
-          if (createInstanceResponse.ok) {
-            successfulPayload = payloads[i];
-            console.log(`Sucesso na tentativa ${i + 1}!`);
-            break;
-          } else {
-            const errorText = await createInstanceResponse.text();
-            console.log(`Tentativa ${i + 1} - Erro: ${errorText}`);
-          }
-        }
+        const createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey
+          },
+          body: JSON.stringify(payload)
+        });
 
         console.log(`Create instance response status: ${createInstanceResponse.status}`)
         console.log(`Create instance response headers:`, Object.fromEntries(createInstanceResponse.headers.entries()))
 
         if (!createInstanceResponse.ok) {
-          console.error(`Todas as tentativas falharam`)
-          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status}`)
+          const errorText = await createInstanceResponse.text()
+          console.error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
+          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
         }
 
         const instanceData = await createInstanceResponse.json()
@@ -184,8 +152,6 @@ serve(async (req) => {
     if (req.method === 'GET') {
       const url = new URL(req.url)
       const instanceName = url.searchParams.get('instanceName')
-      const evolutionEndpoint = url.searchParams.get('evolutionEndpoint')
-      const evolutionApiKey = url.searchParams.get('evolutionApiKey')
       
       if (!instanceName) {
         return new Response(
@@ -197,13 +163,17 @@ serve(async (req) => {
         )
       }
 
-      // Usar API key passada na requisição ou fallback para variável de ambiente
-      const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
+      // Usar dados dos secrets configurados
+      const apiKey = Deno.env.get('EVOLUTION_API_KEY')
+      const endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+      
       if (!apiKey) {
-        throw new Error('Evolution API key not configured')
+        throw new Error('Evolution API key not configured in secrets')
       }
-
-      const endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
+      
+      if (!endpoint) {
+        throw new Error('Evolution API endpoint not configured in secrets')
+      }
       
       try {
         // Get QR code from Evolution API
