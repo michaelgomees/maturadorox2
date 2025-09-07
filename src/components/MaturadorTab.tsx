@@ -47,12 +47,8 @@ const useActiveConnections = () => {
         // TODO: Substituir por query real do Supabase quando conectado
         // const { data } = await supabase.from('connections').select('*').eq('status', 'connected');
         
-        // Simulação temporária - será substituída pela query real
-        const mockConnections: ActiveConnection[] = [
-          { id: '1', name: 'Alex Marketing', status: 'connected', lastSeen: new Date().toISOString(), platform: 'WhatsApp' },
-          { id: '2', name: 'Sofia Suporte', status: 'connected', lastSeen: new Date().toISOString(), platform: 'Telegram' },
-          { id: '3', name: 'João Vendas', status: 'connected', lastSeen: new Date().toISOString(), platform: 'WhatsApp' },
-        ];
+        // Dados reais do banco - sem dados de demonstração
+        const mockConnections: ActiveConnection[] = [];
         
         setConnections(mockConnections);
       } catch (error) {

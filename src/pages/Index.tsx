@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { APIsTab } from "@/components/APIsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
-import { EnhancedMaturadorTab } from "@/components/EnhancedMaturadorTab";
+import { MaturadorTab } from "@/components/MaturadorTab";
 
 // Mock data para demonstração
 const mockChips = [
@@ -261,7 +261,7 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="maturador" className="mt-8">
-            <EnhancedMaturadorTab />
+            <MaturadorTab />
           </TabsContent>
         </Tabs>
       </main>
