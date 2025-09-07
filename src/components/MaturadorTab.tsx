@@ -335,9 +335,9 @@ export const MaturadorTab = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {loading ? (
-                      <SelectItem value="" disabled>Carregando conexões...</SelectItem>
+                      <SelectItem value="loading" disabled>Carregando conexões...</SelectItem>
                     ) : connections.filter(conn => conn.status === 'connected').length === 0 ? (
-                      <SelectItem value="" disabled>Nenhuma conexão ativa</SelectItem>
+                      <SelectItem value="no-connections" disabled>Nenhuma conexão ativa</SelectItem>
                     ) : (
                       connections.filter(conn => conn.status === 'connected').map(connection => (
                         <SelectItem key={connection.id} value={connection.name}>
@@ -369,9 +369,9 @@ export const MaturadorTab = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {loading ? (
-                      <SelectItem value="" disabled>Carregando conexões...</SelectItem>
+                      <SelectItem value="loading" disabled>Carregando conexões...</SelectItem>
                     ) : getAvailableChipsForSecond(newPair.chip1).length === 0 ? (
-                      <SelectItem value="" disabled>Nenhuma conexão disponível</SelectItem>
+                      <SelectItem value="no-available" disabled>Nenhuma conexão disponível</SelectItem>
                     ) : (
                       getAvailableChipsForSecond(newPair.chip1).map(connection => (
                         <SelectItem key={connection.id} value={connection.name}>
