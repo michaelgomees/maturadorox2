@@ -148,7 +148,9 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
           instanceName: connection.evolutionInstanceName,
-          connectionName: connection.name
+          connectionName: connection.name,
+          evolutionEndpoint: evolutionAPI.endpoint.startsWith('http') ? evolutionAPI.endpoint : `https://${evolutionAPI.endpoint}`,
+          evolutionApiKey: evolutionAPI.apiKey
         }
       });
 

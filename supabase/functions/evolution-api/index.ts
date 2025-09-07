@@ -8,6 +8,8 @@ const corsHeaders = {
 interface CreateInstanceRequest {
   instanceName: string;
   connectionName: string;
+  evolutionEndpoint?: string;
+  evolutionApiKey?: string;
 }
 
 interface EvolutionAPIResponse {
@@ -24,13 +26,8 @@ serve(async (req) => {
   }
 
   try {
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')
-    if (!evolutionApiKey) {
-      throw new Error('Evolution API key not configured')
-    }
-
     if (req.method === 'POST') {
-      const { instanceName, connectionName }: CreateInstanceRequest = await req.json()
+      const { instanceName, connectionName, evolutionEndpoint, evolutionApiKey }: CreateInstanceRequest = await req.json()
       
       if (!instanceName || !connectionName) {
         return new Response(
@@ -42,22 +39,28 @@ serve(async (req) => {
         )
       }
 
+      // Usar API key passada na requisição ou fallback para variável de ambiente
+      const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
+      if (!apiKey) {
+        throw new Error('Evolution API key not configured')
+      }
+
       console.log(`Creating Evolution API instance: ${instanceName} for connection: ${connectionName}`)
 
-      // Get Evolution API endpoint from environment or use default
-      const evolutionEndpoint = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
+      // Get Evolution API endpoint from request or environment
+      const endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
       
       try {
         // Create instance in Evolution API
-        const createInstanceResponse = await fetch(`${evolutionEndpoint}/instance/create`, {
+        const createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': evolutionApiKey
+            'apikey': apiKey
           },
           body: JSON.stringify({
             instanceName: instanceName,
-            token: evolutionApiKey,
+            token: apiKey,
             qrcode: true,
             number: false,
             typebot: false,
@@ -76,10 +79,10 @@ serve(async (req) => {
         await new Promise(resolve => setTimeout(resolve, 2000))
 
         // Connect to WhatsApp (get QR code)
-        const connectResponse = await fetch(`${evolutionEndpoint}/instance/connect/${instanceName}`, {
+        const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {
-            'apikey': evolutionApiKey
+            'apikey': apiKey
           }
         })
 
@@ -131,6 +134,8 @@ serve(async (req) => {
     if (req.method === 'GET') {
       const url = new URL(req.url)
       const instanceName = url.searchParams.get('instanceName')
+      const evolutionEndpoint = url.searchParams.get('evolutionEndpoint')
+      const evolutionApiKey = url.searchParams.get('evolutionApiKey')
       
       if (!instanceName) {
         return new Response(
@@ -142,14 +147,20 @@ serve(async (req) => {
         )
       }
 
-      const evolutionEndpoint = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
+      // Usar API key passada na requisição ou fallback para variável de ambiente
+      const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
+      if (!apiKey) {
+        throw new Error('Evolution API key not configured')
+      }
+
+      const endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://evolution-api.example.com'
       
       try {
         // Get QR code from Evolution API
-        const qrResponse = await fetch(`${evolutionEndpoint}/instance/connect/${instanceName}`, {
+        const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {
-            'apikey': evolutionApiKey
+            'apikey': apiKey
           }
         })
 
