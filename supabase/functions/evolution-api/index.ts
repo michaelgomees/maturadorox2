@@ -55,28 +55,67 @@ serve(async (req) => {
       try {
         // Create instance in Evolution API
         console.log(`Making request to: ${endpoint}/instance/create`)
-        const createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': apiKey
+        
+        // Testar diferentes formatos de payload
+        const payloads = [
+          // Formato 1: Mínimo
+          {
+            instanceName: instanceName
           },
-          body: JSON.stringify({
+          // Formato 2: Com token
+          {
+            instanceName: instanceName,
+            token: apiKey
+          },
+          // Formato 3: Completo sem webhook
+          {
+            instanceName: instanceName,
+            token: apiKey,
+            qrcode: true
+          },
+          // Formato 4: Completo original
+          {
             instanceName: instanceName,
             token: apiKey,
             qrcode: true,
             typebot: false,
             webhook_wa_business: false
-          })
-        })
+          }
+        ];
+
+        let createInstanceResponse;
+        let successfulPayload;
+        
+        for (let i = 0; i < payloads.length; i++) {
+          console.log(`Tentativa ${i + 1} com payload:`, JSON.stringify(payloads[i], null, 2));
+          
+          createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey
+            },
+            body: JSON.stringify(payloads[i])
+          });
+
+          console.log(`Tentativa ${i + 1} - Status: ${createInstanceResponse.status}`);
+          
+          if (createInstanceResponse.ok) {
+            successfulPayload = payloads[i];
+            console.log(`Sucesso na tentativa ${i + 1}!`);
+            break;
+          } else {
+            const errorText = await createInstanceResponse.text();
+            console.log(`Tentativa ${i + 1} - Erro: ${errorText}`);
+          }
+        }
 
         console.log(`Create instance response status: ${createInstanceResponse.status}`)
         console.log(`Create instance response headers:`, Object.fromEntries(createInstanceResponse.headers.entries()))
 
         if (!createInstanceResponse.ok) {
-          const errorText = await createInstanceResponse.text()
-          console.error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
-          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
+          console.error(`Todas as tentativas falharam`)
+          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status}`)
         }
 
         const instanceData = await createInstanceResponse.json()
