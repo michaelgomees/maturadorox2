@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface WhatsAppConnection {
   id: string;
@@ -8,6 +9,7 @@ export interface WhatsAppConnection {
   lastActive: string;
   phone?: string;
   evolutionInstanceName?: string;
+  evolutionInstanceId?: string;
   isActive: boolean;
   conversationsCount: number;
   aiModel?: string;
@@ -16,9 +18,9 @@ export interface WhatsAppConnection {
 interface ConnectionsContextType {
   connections: WhatsAppConnection[];
   activeConnectionsCount: number;
-  addConnection: (connection: Omit<WhatsAppConnection, 'id' | 'lastActive'>) => WhatsAppConnection;
-  updateConnection: (id: string, updates: Partial<WhatsAppConnection>) => void;
-  deleteConnection: (id: string) => void;
+  addConnection: (connection: Omit<WhatsAppConnection, 'id' | 'lastActive'>) => Promise<WhatsAppConnection>;
+  updateConnection: (id: string, updates: Partial<WhatsAppConnection>) => Promise<void>;
+  deleteConnection: (id: string) => Promise<void>;
   getConnection: (id: string) => WhatsAppConnection | undefined;
   syncWithEvolutionAPI: (connectionId: string) => Promise<void>;
 }
@@ -36,99 +38,161 @@ export const useConnections = () => {
 export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [connections, setConnections] = useState<WhatsAppConnection[]>([]);
 
-  // Carregar conexões do localStorage
+  // Carregar conexões do Supabase
   useEffect(() => {
-    const savedApiConnections = localStorage.getItem('ox-api-connections');
-    const savedConnections = localStorage.getItem('ox-connections');
-    
-    let allConnections: WhatsAppConnection[] = [];
-
-    // Migrar conexões da API antiga se existirem
-    if (savedApiConnections) {
-      const apiConnections = JSON.parse(savedApiConnections);
-      allConnections = apiConnections.map((conn: any) => ({
-        id: conn.id,
-        name: conn.name,
-        status: conn.status === 'active' ? 'active' : 'inactive',
-        qrCode: conn.qrCode,
-        lastActive: conn.lastActive,
-        phone: conn.phone || `+5511${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`,
-        evolutionInstanceName: conn.name.toLowerCase().replace(/\s+/g, '_'),
-        isActive: conn.status === 'active',
-        conversationsCount: Math.floor(Math.random() * 50),
-        aiModel: 'ChatGPT'
-      }));
-    }
-
-    // Carregar conexões do novo formato
-    if (savedConnections) {
-      const legacyConnections = JSON.parse(savedConnections);
-      const convertedConnections = legacyConnections.map((conn: any) => ({
-        id: conn.id,
-        name: conn.name,
-        status: conn.isActive ? 'active' : 'inactive',
-        lastActive: conn.lastConnectionTime,
-        phone: `+5511${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`,
-        evolutionInstanceName: conn.name.toLowerCase().replace(/\s+/g, '_'),
-        isActive: conn.isActive,
-        conversationsCount: Math.floor(Math.random() * 30),
-        aiModel: 'Claude'
-      }));
-      allConnections = [...allConnections, ...convertedConnections];
-    }
-
-    if (allConnections.length > 0) {
-      setConnections(allConnections);
-      saveConnections(allConnections);
-    }
+    loadConnectionsFromSupabase();
   }, []);
 
-  const saveConnections = (newConnections: WhatsAppConnection[]) => {
-    setConnections(newConnections);
-    localStorage.setItem('ox-whatsapp-connections', JSON.stringify(newConnections));
-    
-    // Manter compatibilidade com sistemas antigos
-    localStorage.setItem('ox-api-connections', JSON.stringify(newConnections));
+  const loadConnectionsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('saas_conexoes')
+        .select('*')
+        .eq('status', 'ativo');
+
+      if (error) {
+        console.error('Erro ao carregar conexões:', error);
+        return;
+      }
+
+      const formattedConnections: WhatsAppConnection[] = data.map((conn: any) => ({
+        id: conn.id,
+        name: conn.nome,
+        status: conn.status === 'ativo' ? 'active' : 'inactive',
+        qrCode: conn.qr_code,
+        lastActive: conn.updated_at,
+        phone: conn.telefone,
+        evolutionInstanceName: conn.evolution_instance_name,
+        evolutionInstanceId: conn.evolution_instance_id,
+        isActive: conn.status === 'ativo',
+        conversationsCount: conn.conversas_count || 0,
+        aiModel: conn.modelo_ia || 'ChatGPT'
+      }));
+
+      setConnections(formattedConnections);
+    } catch (error) {
+      console.error('Erro ao carregar conexões:', error);
+    }
   };
 
-  const addConnection = (connectionData: Omit<WhatsAppConnection, 'id' | 'lastActive'>): WhatsAppConnection => {
+  const saveConnectionToSupabase = async (connection: WhatsAppConnection, isUpdate = false) => {
+    try {
+      const connectionData = {
+        nome: connection.name,
+        status: connection.status === 'active' ? 'ativo' : 'inativo',
+        qr_code: connection.qrCode,
+        telefone: connection.phone,
+        evolution_instance_name: connection.evolutionInstanceName,
+        evolution_instance_id: connection.evolutionInstanceId,
+        conversas_count: connection.conversationsCount,
+        modelo_ia: connection.aiModel,
+        config: {},
+        usuario_id: '00000000-0000-0000-0000-000000000000' // Temporário até implementar auth
+      };
+
+      if (isUpdate) {
+        const { error } = await supabase
+          .from('saas_conexoes')
+          .update(connectionData)
+          .eq('id', connection.id);
+
+        if (error) {
+          console.error('Erro ao atualizar conexão:', error);
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from('saas_conexoes')
+          .insert(connectionData);
+
+        if (error) {
+          console.error('Erro ao salvar conexão:', error);
+          throw error;
+        }
+      }
+      
+      // Recarregar conexões do Supabase
+      await loadConnectionsFromSupabase();
+    } catch (error) {
+      console.error('Erro ao salvar no Supabase:', error);
+      throw error;
+    }
+  };
+
+  const addConnection = async (connectionData: Omit<WhatsAppConnection, 'id' | 'lastActive'>): Promise<WhatsAppConnection> => {
     const newConnection: WhatsAppConnection = {
       ...connectionData,
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       lastActive: new Date().toISOString(),
       phone: connectionData.phone || `+5511${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`,
       evolutionInstanceName: connectionData.name.toLowerCase().replace(/\s+/g, '_'),
       conversationsCount: 0,
-      aiModel: connectionData.aiModel || 'ChatGPT'
+      aiModel: connectionData.aiModel || 'ChatGPT',
+      status: 'connecting'
     };
 
-    const updatedConnections = [...connections, newConnection];
-    saveConnections(updatedConnections);
-    return newConnection;
+    try {
+      // Criar instância na Evolution API automaticamente
+      await createEvolutionInstance(newConnection);
+      
+      // Salvar no Supabase
+      await saveConnectionToSupabase(newConnection);
+      
+      return newConnection;
+    } catch (error) {
+      console.error('Erro ao criar conexão:', error);
+      throw error;
+    }
   };
 
-  const updateConnection = (id: string, updates: Partial<WhatsAppConnection>) => {
-    const updatedConnections = connections.map(conn =>
-      conn.id === id 
-        ? { ...conn, ...updates, lastActive: new Date().toISOString() }
-        : conn
-    );
-    saveConnections(updatedConnections);
+  const updateConnection = async (id: string, updates: Partial<WhatsAppConnection>) => {
+    const connection = connections.find(conn => conn.id === id);
+    if (!connection) return;
+
+    const updatedConnection = { 
+      ...connection, 
+      ...updates, 
+      lastActive: new Date().toISOString() 
+    };
+
+    // Atualizar estado local
+    setConnections(prev => prev.map(conn =>
+      conn.id === id ? updatedConnection : conn
+    ));
+
+    try {
+      // Salvar no Supabase
+      await saveConnectionToSupabase(updatedConnection, true);
+    } catch (error) {
+      console.error('Erro ao atualizar conexão:', error);
+    }
   };
 
-  const deleteConnection = (id: string) => {
-    const updatedConnections = connections.filter(conn => conn.id !== id);
-    saveConnections(updatedConnections);
+  const deleteConnection = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('saas_conexoes')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao deletar conexão:', error);
+        throw error;
+      }
+
+      // Atualizar estado local
+      setConnections(prev => prev.filter(conn => conn.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar conexão:', error);
+      throw error;
+    }
   };
 
   const getConnection = (id: string) => {
     return connections.find(conn => conn.id === id);
   };
 
-  const syncWithEvolutionAPI = async (connectionId: string): Promise<void> => {
-    const connection = getConnection(connectionId);
-    if (!connection) return;
-
+  const createEvolutionInstance = async (connection: WhatsAppConnection): Promise<void> => {
     try {
       // Verificar se Evolution API está configurada
       const evolutionAPI = JSON.parse(localStorage.getItem('ox-evolution-api') || '{}');
@@ -137,14 +201,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw new Error('Evolution API não configurada');
       }
 
-      // Atualizar status para conectando
-      updateConnection(connectionId, {
-        status: 'connecting'
-      });
-
       // Chamar Edge Function para criar instância na Evolution API
-      const { supabase } = await import('@/integrations/supabase/client');
-      
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
           instanceName: connection.evolutionInstanceName,
@@ -162,15 +219,65 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw new Error(data.error || 'Falha na criação da instância');
       }
 
-      // Atualizar conexão com QR Code real da Evolution API
-      updateConnection(connectionId, {
+      // Atualizar conexão com dados da Evolution API
+      connection.status = 'active';
+      connection.qrCode = data.qrCode;
+      connection.isActive = true;
+      connection.evolutionInstanceId = data.instanceName;
+
+    } catch (error) {
+      connection.status = 'error';
+      throw error;
+    }
+  };
+
+  const syncWithEvolutionAPI = async (connectionId: string): Promise<void> => {
+    const connection = getConnection(connectionId);
+    if (!connection) return;
+
+    try {
+      // Verificar se Evolution API está configurada
+      const evolutionAPI = JSON.parse(localStorage.getItem('ox-evolution-api') || '{}');
+      
+      if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
+        throw new Error('Evolution API não configurada');
+      }
+
+      // Atualizar status para conectando
+      await updateConnection(connectionId, {
+        status: 'connecting'
+      });
+
+      // Buscar QR Code atualizado da instância
+      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${connection.evolutionInstanceName}&evolutionEndpoint=${encodeURIComponent(evolutionAPI.endpoint.startsWith('http') ? evolutionAPI.endpoint : `https://${evolutionAPI.endpoint}`)}&evolutionApiKey=${encodeURIComponent(evolutionAPI.apiKey)}`;
+
+      const response = await fetch(evolutionApiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`Erro na Edge Function: ${response.statusText}`);
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Falha ao buscar QR Code');
+      }
+
+      // Atualizar conexão com QR Code atualizado
+      await updateConnection(connectionId, {
         status: 'active',
         qrCode: data.qrCode,
         isActive: true
       });
 
     } catch (error) {
-      updateConnection(connectionId, {
+      await updateConnection(connectionId, {
         status: 'error'
       });
       throw error;

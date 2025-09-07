@@ -17,28 +17,46 @@ export type Database = {
       saas_conexoes: {
         Row: {
           config: Json | null
+          conversas_count: number | null
           created_at: string
+          evolution_instance_id: string | null
+          evolution_instance_name: string | null
           id: string
+          modelo_ia: string | null
           nome: string
+          qr_code: string | null
           status: string
+          telefone: string | null
           updated_at: string
           usuario_id: string
         }
         Insert: {
           config?: Json | null
+          conversas_count?: number | null
           created_at?: string
+          evolution_instance_id?: string | null
+          evolution_instance_name?: string | null
           id?: string
+          modelo_ia?: string | null
           nome: string
+          qr_code?: string | null
           status?: string
+          telefone?: string | null
           updated_at?: string
           usuario_id: string
         }
         Update: {
           config?: Json | null
+          conversas_count?: number | null
           created_at?: string
+          evolution_instance_id?: string | null
+          evolution_instance_name?: string | null
           id?: string
+          modelo_ia?: string | null
           nome?: string
+          qr_code?: string | null
           status?: string
+          telefone?: string | null
           updated_at?: string
           usuario_id?: string
         }

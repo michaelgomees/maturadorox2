@@ -233,7 +233,7 @@ export const APIsTab = () => {
     }
 
     try {
-      const newConnection = addConnection({
+      const newConnection = await addConnection({
         name: newConnectionName,
         status: 'inactive',
         isActive: false,
@@ -241,15 +241,12 @@ export const APIsTab = () => {
         aiModel: 'ChatGPT'
       });
 
-      // Sincronizar com Evolution API e gerar QR Code
-      await syncWithEvolutionAPI(newConnection.id);
-      
       setNewConnectionName('');
       setIsCreatingConnection(false);
       
       toast({
         title: "Conexão criada",
-        description: `Conexão "${newConnectionName}" criada e sincronizada com Evolution API.`
+        description: `Conexão "${newConnectionName}" criada e instância Evolution configurada.`
       });
     } catch (error) {
       toast({
@@ -260,11 +257,11 @@ export const APIsTab = () => {
     }
   };
 
-  const handleToggleConnection = (id: string) => {
+  const handleToggleConnection = async (id: string) => {
     const connection = connections.find(c => c.id === id);
     if (connection) {
       const newStatus = connection.isActive ? 'inactive' : 'active';
-      updateConnection(id, {
+      await updateConnection(id, {
         status: newStatus,
         isActive: !connection.isActive
       });
@@ -276,14 +273,22 @@ export const APIsTab = () => {
     }
   };
 
-  const handleDeleteConnection = (id: string) => {
+  const handleDeleteConnection = async (id: string) => {
     const connection = connections.find(c => c.id === id);
     if (connection && window.confirm(`Tem certeza que deseja excluir a conexão "${connection.name}"?`)) {
-      deleteConnection(id);
-      toast({
-        title: "Conexão removida",
-        description: "Conexão deletada com sucesso."
-      });
+      try {
+        await deleteConnection(id);
+        toast({
+          title: "Conexão removida",
+          description: "Conexão deletada com sucesso."
+        });
+      } catch (error) {
+        toast({
+          title: "Erro",
+          description: "Erro ao deletar conexão.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
