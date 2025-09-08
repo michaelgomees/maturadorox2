@@ -284,6 +284,41 @@ export const APIsTab = () => {
     }
   };
 
+  const handleReconfigureConnection = async (id: string) => {
+    const connection = connections.find(c => c.id === id);
+    if (!connection) return;
+
+    try {
+      // Atualizar para status connecting
+      await updateConnection(id, { status: 'connecting' });
+      
+      // Gerar novo evolutionInstanceName se não tiver
+      const instanceName = connection.evolutionInstanceName || connection.name.toLowerCase().replace(/\s+/g, '_');
+      
+      // Atualizar com o instanceName
+      await updateConnection(id, {
+        evolutionInstanceName: instanceName,
+        phone: connection.phone || `+5511${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`
+      });
+
+      // Tentar sincronizar com Evolution API
+      await syncWithEvolutionAPI(id);
+      
+      toast({
+        title: "Conexão Reconfigurada",
+        description: `${connection.name} foi reconfigurada com sucesso.`
+      });
+    } catch (error) {
+      console.error('Erro ao reconfigurar conexão:', error);
+      await updateConnection(id, { status: 'inactive' });
+      toast({
+        title: "Erro na Reconfiguração",
+        description: `Não foi possível reconfigurar ${connection.name}. Verifique as configurações da Evolution API.`,
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleShowQR = (connectionId: string) => {
     setShowQRModal(connectionId);
   };
@@ -487,6 +522,15 @@ export const APIsTab = () => {
                       >
                         <QrCode className="w-4 h-4 mr-2" />
                         Ver QR Code
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReconfigureConnection(connection.id)}
+                        disabled={connection.status === 'connecting'}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Reconfigurar
                       </Button>
                       <Switch
                         checked={connection.isActive}
