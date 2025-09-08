@@ -246,6 +246,9 @@ export const MaturadorTab = () => {
     }
   };
 
+  // Estado para guardar referências dos intervalos
+  const [intervals, setIntervals] = useState<{[key: string]: NodeJS.Timeout}>({});
+
   const handleStartMaturador = () => {
     if (config.selectedPairs.length === 0) {
       toast({
@@ -298,22 +301,39 @@ export const MaturadorTab = () => {
 
     if (!config.isRunning) {
       // Iniciar conversas automáticas
+      console.log(`Iniciando maturador com ${activePairs.length} dupla(s) ativa(s)`);
+      
       activePairs.forEach((pair, index) => {
+        console.log(`Configurando dupla ${pair.chip1} <-> ${pair.chip2}`);
+        
         // Primeira mensagem imediata
-        setTimeout(() => processConversation(pair), 1000 + (index * 500));
+        setTimeout(() => {
+          console.log(`Enviando primeira mensagem para ${pair.chip1} <-> ${pair.chip2}`);
+          processConversation(pair);
+        }, 1000 + (index * 500));
         
         // Mensagens periódicas
         const interval = setInterval(() => {
           if (localStorage.getItem('ox-maturador-config')) {
             const currentConfig = JSON.parse(localStorage.getItem('ox-maturador-config')!);
             if (currentConfig.isRunning) {
+              console.log(`Enviando mensagem periódica para ${pair.chip1} <-> ${pair.chip2}`);
               processConversation(pair);
             } else {
+              console.log(`Parando intervalo para ${pair.chip1} <-> ${pair.chip2}`);
               clearInterval(interval);
             }
           }
-        }, Math.random() * 20000 + 10000); // 10-30 segundos
+        }, 5000 + (Math.random() * 5000)); // 5-10 segundos
+        
+        // Salvar referência do interval
+        setIntervals(prev => ({ ...prev, [pair.id]: interval }));
       });
+    } else {
+      // Parar maturador - limpar todos os intervalos
+      console.log('Parando maturador e limpando intervalos');
+      Object.values(intervals).forEach(interval => clearInterval(interval));
+      setIntervals({});
     }
     
     toast({
