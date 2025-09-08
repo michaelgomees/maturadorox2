@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Play, Pause, Square, Users, MessageCircle, ArrowRight, Settings, Activity, Wifi, WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
+import { useMaturadorEngine } from "@/hooks/useMaturadorEngine";
 
 interface ChipPair {
   id: string;
@@ -37,6 +38,7 @@ interface ActiveConnection {
 
 export const MaturadorTab = () => {
   const { connections: whatsappConnections } = useConnections();
+  const maturadorEngine = useMaturadorEngine();
   const [config, setConfig] = useState<MaturadorConfig>({
     isRunning: false,
     selectedPairs: [],
@@ -50,19 +52,30 @@ export const MaturadorTab = () => {
   
   const { toast } = useToast();
 
-  // Carregar configuração do localStorage
+  // Carregar dados do maturador engine
   useEffect(() => {
-    const savedConfig = localStorage.getItem('ox-maturador-config');
-    if (savedConfig) {
-      setConfig(JSON.parse(savedConfig));
-    }
+    maturadorEngine.loadData();
   }, []);
 
-  // Salvar configuração no localStorage
-  const saveConfig = (newConfig: MaturadorConfig) => {
-    setConfig(newConfig);
-    localStorage.setItem('ox-maturador-config', JSON.stringify(newConfig));
-  };
+  // Sincronizar configuração com o engine
+  useEffect(() => {
+    const enginePairs = maturadorEngine.chipPairs.map(pair => ({
+      id: pair.id,
+      chip1: pair.firstChipName,
+      chip2: pair.secondChipName,
+      isActive: pair.isActive,
+      messagesExchanged: pair.messagesCount,
+      lastActivity: pair.lastActivity.toISOString(),
+      status: pair.status
+    }));
+    
+    setConfig(prev => ({
+      ...prev,
+      selectedPairs: enginePairs,
+      isRunning: maturadorEngine.isRunning
+    }));
+  }, [maturadorEngine.chipPairs, maturadorEngine.isRunning]);
+
 
   const handleAddPair = () => {
     if (!newPair.chip1 || !newPair.chip2 || newPair.chip1 === newPair.chip2) {
@@ -90,22 +103,20 @@ export const MaturadorTab = () => {
       return;
     }
 
-    const pair: ChipPair = {
+    const enginePair = {
       id: Date.now().toString(),
-      chip1: newPair.chip1,
-      chip2: newPair.chip2,
+      firstChipId: Date.now().toString() + '_1',
+      firstChipName: newPair.chip1,
+      secondChipId: Date.now().toString() + '_2',
+      secondChipName: newPair.chip2,
       isActive: true,
-      messagesExchanged: 0,
-      lastActivity: new Date().toISOString(),
-      status: 'stopped'
+      messagesCount: 0,
+      lastActivity: new Date(),
+      status: 'stopped' as const,
+      useInstancePrompt: false
     };
 
-    const updatedConfig = {
-      ...config,
-      selectedPairs: [...config.selectedPairs, pair]
-    };
-    
-    saveConfig(updatedConfig);
+    maturadorEngine.setChipPairs(prev => [...prev, enginePair]);
     setNewPair({ chip1: '', chip2: '' });
     
     toast({
@@ -115,11 +126,7 @@ export const MaturadorTab = () => {
   };
 
   const handleRemovePair = (pairId: string) => {
-    const updatedConfig = {
-      ...config,
-      selectedPairs: config.selectedPairs.filter(pair => pair.id !== pairId)
-    };
-    saveConfig(updatedConfig);
+    maturadorEngine.setChipPairs(prev => prev.filter(pair => pair.id !== pairId));
     
     toast({
       title: "Par removido",
@@ -128,23 +135,22 @@ export const MaturadorTab = () => {
   };
 
   const handleTogglePair = (pairId: string) => {
-    const updatedPairs = config.selectedPairs.map(pair => 
-      pair.id === pairId 
-        ? { 
-            ...pair, 
-            isActive: !pair.isActive,
-            status: (!pair.isActive ? 'running' : 'paused') as ChipPair['status'],
-            lastActivity: new Date().toISOString()
-          }
-        : pair
+    maturadorEngine.setChipPairs(prev => 
+      prev.map(pair => 
+        pair.id === pairId 
+          ? { 
+              ...pair, 
+              isActive: !pair.isActive,
+              status: (!pair.isActive ? 'running' : 'paused') as 'running' | 'paused',
+              lastActivity: new Date()
+            }
+          : pair
+      )
     );
-    
-    const updatedConfig = { ...config, selectedPairs: updatedPairs };
-    saveConfig(updatedConfig);
   };
 
   const handleStartMaturador = () => {
-    if (config.selectedPairs.length === 0) {
+    if (maturadorEngine.chipPairs.length === 0) {
       toast({
         title: "Erro",
         description: "Configure pelo menos uma dupla de chips para iniciar o maturador.",
@@ -153,7 +159,7 @@ export const MaturadorTab = () => {
       return;
     }
 
-    const activePairs = config.selectedPairs.filter(pair => pair.isActive);
+    const activePairs = maturadorEngine.chipPairs.filter(pair => pair.isActive);
     if (activePairs.length === 0) {
       toast({
         title: "Erro", 
@@ -163,24 +169,11 @@ export const MaturadorTab = () => {
       return;
     }
 
-    const updatedConfig = {
-      ...config,
-      isRunning: !config.isRunning,
-      selectedPairs: config.selectedPairs.map(pair => ({
-        ...pair,
-        status: (config.isRunning ? 'stopped' : (pair.isActive ? 'running' : 'paused')) as ChipPair['status'],
-        lastActivity: new Date().toISOString()
-      }))
-    };
-    
-    saveConfig(updatedConfig);
-    
-    toast({
-      title: config.isRunning ? "Maturador pausado" : "Maturador iniciado",
-      description: config.isRunning 
-        ? "Todas as conversas foram pausadas." 
-        : `Iniciando conversas entre ${activePairs.length} dupla(s) de chips.`
-    });
+    if (maturadorEngine.isRunning) {
+      maturadorEngine.stopMaturador();
+    } else {
+      maturadorEngine.startMaturador();
+    }
   };
 
   const getStatusBadge = (status: ChipPair['status']) => {
@@ -226,16 +219,16 @@ export const MaturadorTab = () => {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Switch
-              checked={config.isRunning}
+              checked={maturadorEngine.isRunning}
               onCheckedChange={handleStartMaturador}
             />
-            <Label>Maturador {config.isRunning ? 'Ativo' : 'Inativo'}</Label>
+            <Label>Maturador {maturadorEngine.isRunning ? 'Ativo' : 'Inativo'}</Label>
           </div>
           <Button 
             onClick={handleStartMaturador}
-            variant={config.isRunning ? "destructive" : "default"}
+            variant={maturadorEngine.isRunning ? "destructive" : "default"}
           >
-            {config.isRunning ? (
+            {maturadorEngine.isRunning ? (
               <>
                 <Square className="w-4 h-4 mr-2" />
                 Parar Maturador
@@ -391,7 +384,7 @@ export const MaturadorTab = () => {
             <div className="flex items-center space-x-2">
               <Switch
                 checked={config.useBasePrompt}
-                onCheckedChange={(checked) => saveConfig({ ...config, useBasePrompt: checked })}
+                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, useBasePrompt: checked }))}
               />
               <Label>Usar prompt base das APIs de IA</Label>
             </div>
