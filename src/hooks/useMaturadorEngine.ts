@@ -220,54 +220,56 @@ export const useMaturadorEngine = () => {
       try {
         await sendRealMessage(respondingChip.name, receivingChip.name, messageContent);
         console.log(`✅ Mensagem real enviada: ${respondingChip.name} -> ${receivingChip.name}`);
+        
+        // Só criar mensagem no histórico e incrementar contador se o envio real foi bem-sucedido
+        const newMessage: MaturadorMessage = {
+          id: crypto.randomUUID(),
+          chipPairId: pair.id,
+          fromChipId: respondingChip.id,
+          fromChipName: respondingChip.name,
+          toChipId: receivingChip.id,
+          toChipName: receivingChip.name,
+          content: messageContent,
+          timestamp: new Date(),
+          aiModel: 'gpt-4o-mini'
+        };
+
+        // Atualizar estado apenas se mensagem foi enviada com sucesso
+        setMessages(prev => {
+          const updated = [newMessage, ...prev];
+          return updated;
+        });
+
+        setChipPairs(prev => {
+          const updated = prev.map(p => 
+            p.id === pair.id 
+              ? { 
+                  ...p, 
+                  messagesCount: p.messagesCount + 1,
+                  lastActivity: new Date() 
+                }
+              : p
+          );
+          
+          // Salvar dados atualizados
+          const newMessages = [newMessage, ...messages];
+          saveData(newMessages, updated);
+          
+          return updated;
+        });
+
+        console.log(`Mensagem processada com sucesso: ${respondingChip.name} -> ${receivingChip.name}`);
+        
       } catch (error) {
         console.error('❌ Erro ao enviar mensagem real:', error);
         toast({
           title: "Erro no Envio",
-          description: `Não foi possível enviar mensagem real de ${respondingChip.name} para ${receivingChip.name}`,
+          description: `Não foi possível enviar mensagem real de ${respondingChip.name} para ${receivingChip.name}. Verifique se as conexões estão configuradas corretamente.`,
           variant: "destructive"
         });
-        // Continua o fluxo mesmo com erro no envio real
+        // Não salva mensagem nem incrementa contador se falhou o envio real
+        return;
       }
-
-      // Criar nova mensagem para histórico local
-      const newMessage: MaturadorMessage = {
-        id: crypto.randomUUID(),
-        chipPairId: pair.id,
-        fromChipId: respondingChip.id,
-        fromChipName: respondingChip.name,
-        toChipId: receivingChip.id,
-        toChipName: receivingChip.name,
-        content: messageContent,
-        timestamp: new Date(),
-        aiModel: 'gpt-4o-mini'
-      };
-
-      // Atualizar estado
-      setMessages(prev => {
-        const updated = [newMessage, ...prev];
-        return updated;
-      });
-
-      setChipPairs(prev => {
-        const updated = prev.map(p => 
-          p.id === pair.id 
-            ? { 
-                ...p, 
-                messagesCount: p.messagesCount + 1,
-                lastActivity: new Date() 
-              }
-            : p
-        );
-        
-        // Salvar dados atualizados
-        const newMessages = [newMessage, ...messages];
-        saveData(newMessages, updated);
-        
-        return updated;
-      });
-
-      console.log(`Mensagem processada: ${respondingChip.name} -> ${receivingChip.name}`);
 
     } catch (error) {
       console.error('Erro ao processar conversa:', error);
