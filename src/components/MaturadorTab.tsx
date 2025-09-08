@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Play, Pause, Square, Users, MessageCircle, ArrowRight, Settings, Activity, Wifi, WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChipPair {
   id: string;
@@ -143,6 +144,108 @@ export const MaturadorTab = () => {
     saveConfig(updatedConfig);
   };
 
+  // Gerar mensagem usando OpenAI
+  const generateMessage = async (chipName: string, prompt: string, conversationHistory: any[]): Promise<string> => {
+    try {
+      console.log(`Gerando mensagem para ${chipName}`);
+      
+      const { data, error } = await supabase.functions.invoke('openai-chat', {
+        body: {
+          prompt,
+          chipName,
+          conversationHistory: conversationHistory.slice(-5).map(msg => ({
+            content: msg.content,
+            isFromThisChip: msg.fromChip === chipName
+          }))
+        }
+      });
+
+      if (error) {
+        console.error('Erro ao chamar OpenAI:', error);
+        throw error;
+      }
+
+      if (!data?.message) {
+        throw new Error('Resposta inválida da OpenAI');
+      }
+
+      return data.message;
+    } catch (error) {
+      console.error('Erro ao gerar mensagem:', error);
+      throw error;
+    }
+  };
+
+  // Processar conversa entre chips
+  const processConversation = async (pair: ChipPair) => {
+    try {
+      console.log(`Processando conversa: ${pair.chip1} <-> ${pair.chip2}`);
+      
+      // Buscar prompt global
+      const savedPrompts = localStorage.getItem('ox-ai-prompts');
+      let globalPrompt = 'Participe de uma conversa natural e engajante.';
+      
+      if (savedPrompts) {
+        const prompts = JSON.parse(savedPrompts);
+        const basePrompt = prompts.find((p: any) => p.isGlobal);
+        if (basePrompt) {
+          globalPrompt = basePrompt.content;
+        }
+      }
+
+      // Buscar histórico de conversas deste par do localStorage
+      const conversationKey = `maturador-conversation-${pair.id}`;
+      const savedConversation = localStorage.getItem(conversationKey);
+      let conversationHistory: any[] = [];
+      
+      if (savedConversation) {
+        conversationHistory = JSON.parse(savedConversation);
+      }
+
+      // Determinar qual chip deve responder (alternar)
+      const lastMessage = conversationHistory[conversationHistory.length - 1];
+      const respondingChip = !lastMessage || lastMessage.fromChip === pair.chip2 ? pair.chip1 : pair.chip2;
+      const receivingChip = respondingChip === pair.chip1 ? pair.chip2 : pair.chip1;
+
+      // Gerar mensagem
+      const messageContent = await generateMessage(respondingChip, globalPrompt, conversationHistory);
+
+      // Criar nova mensagem
+      const newMessage = {
+        id: crypto.randomUUID(),
+        fromChip: respondingChip,
+        toChip: receivingChip,
+        content: messageContent,
+        timestamp: new Date().toISOString(),
+        aiModel: 'gpt-4o-mini'
+      };
+
+      // Salvar mensagem no histórico
+      const updatedHistory = [...conversationHistory, newMessage];
+      localStorage.setItem(conversationKey, JSON.stringify(updatedHistory));
+
+      // Atualizar contador de mensagens do par
+      const updatedPairs = config.selectedPairs.map(p => 
+        p.id === pair.id 
+          ? { ...p, messagesExchanged: p.messagesExchanged + 1, lastActivity: new Date().toISOString() }
+          : p
+      );
+      
+      const updatedConfig = { ...config, selectedPairs: updatedPairs };
+      saveConfig(updatedConfig);
+
+      console.log(`Mensagem gerada: ${respondingChip} -> ${receivingChip}: ${messageContent.substring(0, 50)}...`);
+
+    } catch (error) {
+      console.error('Erro ao processar conversa:', error);
+      toast({
+        title: "Erro na Conversa",
+        description: `Erro ao gerar mensagem para ${pair.chip1} <-> ${pair.chip2}`,
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleStartMaturador = () => {
     if (config.selectedPairs.length === 0) {
       toast({
@@ -163,6 +266,24 @@ export const MaturadorTab = () => {
       return;
     }
 
+    // Verificar se há prompt configurado
+    const savedPrompts = localStorage.getItem('ox-ai-prompts');
+    let hasGlobalPrompt = false;
+    
+    if (savedPrompts) {
+      const prompts = JSON.parse(savedPrompts);
+      hasGlobalPrompt = prompts.some((prompt: any) => prompt.isGlobal);
+    }
+    
+    if (!hasGlobalPrompt) {
+      toast({
+        title: "Erro", 
+        description: "Configure um prompt global na aba 'Prompts de IA' antes de iniciar o maturador.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const updatedConfig = {
       ...config,
       isRunning: !config.isRunning,
@@ -174,6 +295,26 @@ export const MaturadorTab = () => {
     };
     
     saveConfig(updatedConfig);
+
+    if (!config.isRunning) {
+      // Iniciar conversas automáticas
+      activePairs.forEach((pair, index) => {
+        // Primeira mensagem imediata
+        setTimeout(() => processConversation(pair), 1000 + (index * 500));
+        
+        // Mensagens periódicas
+        const interval = setInterval(() => {
+          if (localStorage.getItem('ox-maturador-config')) {
+            const currentConfig = JSON.parse(localStorage.getItem('ox-maturador-config')!);
+            if (currentConfig.isRunning) {
+              processConversation(pair);
+            } else {
+              clearInterval(interval);
+            }
+          }
+        }, Math.random() * 20000 + 10000); // 10-30 segundos
+      });
+    }
     
     toast({
       title: config.isRunning ? "Maturador pausado" : "Maturador iniciado",
