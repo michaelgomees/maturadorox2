@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
+import { useConnections } from '@/contexts/ConnectionsContext';
 
 export interface MaturadorMessage {
   id: string;
@@ -35,6 +36,7 @@ export const useMaturadorEngine = () => {
   const [chipPairs, setChipPairs] = useState<ChipPair[]>([]);
   const intervalRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const { toast } = useToast();
+  const { connections, getConnection } = useConnections();
 
   // Carregar dados do localStorage
   const loadData = useCallback(() => {
@@ -69,6 +71,70 @@ export const useMaturadorEngine = () => {
       selectedPairs: newPairs
     }));
   }, [isRunning]);
+
+  // Enviar mensagem real através da Evolution API
+  const sendRealMessage = useCallback(async (
+    fromChipName: string,
+    toChipName: string,
+    message: string
+  ): Promise<void> => {
+    try {
+      console.log(`🚀 INICIANDO ENVIO DE MENSAGEM REAL: ${fromChipName} -> ${toChipName}`);
+      console.log(`Mensagem: "${message}"`);
+      console.log(`Conexões disponíveis:`, connections.map(c => ({ name: c.name, status: c.status, phone: c.phone })));
+      
+      // Encontrar as conexões pelos nomes
+      const fromConnection = connections.find(conn => conn.name === fromChipName);
+      const toConnection = connections.find(conn => conn.name === toChipName);
+      
+      console.log(`Conexão remetente encontrada:`, fromConnection ? { name: fromConnection.name, status: fromConnection.status, phone: fromConnection.phone, instance: fromConnection.evolutionInstanceName } : 'NÃO ENCONTRADA');
+      console.log(`Conexão destinatário encontrada:`, toConnection ? { name: toConnection.name, status: toConnection.status, phone: toConnection.phone, instance: toConnection.evolutionInstanceName } : 'NÃO ENCONTRADA');
+      
+      if (!fromConnection || !toConnection) {
+        throw new Error(`Conexão não encontrada: ${fromChipName} ou ${toChipName}`);
+      }
+      
+      if (fromConnection.status !== 'active' || toConnection.status !== 'active') {
+        throw new Error(`Uma das conexões não está ativa: ${fromChipName} (${fromConnection.status}) ou ${toChipName} (${toConnection.status})`);
+      }
+      
+      // Preparar número do destinatário (limpar formatação)
+      let toNumber = toConnection.phone || toConnection.evolutionInstanceId || '';
+      if (toNumber.startsWith('+')) {
+        toNumber = toNumber.substring(1);
+      }
+      toNumber = toNumber.replace(/\D/g, ''); // Remove tudo que não for dígito
+      
+      console.log(`Detalhes do envio:`, {
+        from: fromConnection.evolutionInstanceName,
+        fromPhone: fromConnection.phone,
+        to: toNumber,
+        toOriginal: toConnection.phone,
+        message: message.substring(0, 50) + '...'
+      });
+      
+      // Enviar mensagem via Evolution API
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'sendMessage',
+          instanceName: fromConnection.evolutionInstanceName,
+          to: toNumber,
+          message: message
+        }
+      });
+      
+      if (error) {
+        console.error('Erro ao enviar mensagem via Evolution API:', error);
+        throw error;
+      }
+      
+      console.log('Mensagem real enviada com sucesso:', data);
+      
+    } catch (error) {
+      console.error('Erro ao enviar mensagem real:', error);
+      throw error;
+    }
+  }, [connections]);
 
   // Gerar mensagem usando OpenAI
   const generateMessage = useCallback(async (
@@ -150,7 +216,21 @@ export const useMaturadorEngine = () => {
         pairHistory
       );
 
-      // Criar nova mensagem
+      // Enviar mensagem real entre os chips
+      try {
+        await sendRealMessage(respondingChip.name, receivingChip.name, messageContent);
+        console.log(`✅ Mensagem real enviada: ${respondingChip.name} -> ${receivingChip.name}`);
+      } catch (error) {
+        console.error('❌ Erro ao enviar mensagem real:', error);
+        toast({
+          title: "Erro no Envio",
+          description: `Não foi possível enviar mensagem real de ${respondingChip.name} para ${receivingChip.name}`,
+          variant: "destructive"
+        });
+        // Continua o fluxo mesmo com erro no envio real
+      }
+
+      // Criar nova mensagem para histórico local
       const newMessage: MaturadorMessage = {
         id: crypto.randomUUID(),
         chipPairId: pair.id,
@@ -187,7 +267,7 @@ export const useMaturadorEngine = () => {
         return updated;
       });
 
-      console.log(`Mensagem gerada: ${respondingChip.name} -> ${receivingChip.name}`);
+      console.log(`Mensagem processada: ${respondingChip.name} -> ${receivingChip.name}`);
 
     } catch (error) {
       console.error('Erro ao processar conversa:', error);
@@ -197,7 +277,7 @@ export const useMaturadorEngine = () => {
         variant: "destructive"
       });
     }
-  }, [messages, generateMessage, saveData, toast]);
+  }, [messages, generateMessage, sendRealMessage, saveData, toast, connections]);
 
   // Iniciar maturador
   const startMaturador = useCallback(() => {

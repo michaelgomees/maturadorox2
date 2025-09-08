@@ -5,11 +5,109 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Função para enviar mensagens
+async function handleSendMessage(request: SendMessageRequest) {
+  const { instanceName, to, message } = request
+  
+  if (!instanceName || !to || !message) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'instanceName, to and message are required' }),
+      { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
+  }
+
+  const apiKey = Deno.env.get('EVOLUTION_API_KEY')
+  let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+  
+  if (!apiKey || !endpoint) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Evolution API not configured' }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
+  }
+
+  // Garantir que o endpoint tenha o protocolo HTTPS
+  if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+    endpoint = `https://${endpoint}`;
+  }
+
+  try {
+    console.log(`Enviando mensagem via Evolution API: ${instanceName} -> ${to}`)
+    
+    const messagePayload = {
+      number: to,
+      text: message
+    }
+
+    const response = await fetch(`${endpoint}/message/sendText/${instanceName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': apiKey
+      },
+      body: JSON.stringify(messagePayload)
+    })
+
+    console.log(`Send message response status: ${response.status}`)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Erro ao enviar mensagem: ${response.status} - ${errorText}`)
+      throw new Error(`Erro ao enviar mensagem: ${response.status} - ${errorText}`)
+    }
+
+    const responseData = await response.json()
+    console.log('Mensagem enviada com sucesso:', responseData)
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        messageId: responseData.key?.id,
+        instanceName,
+        to,
+        message 
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
+
+  } catch (error) {
+    console.error('Erro ao enviar mensagem:', error)
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error.message,
+        instanceName,
+        to 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    )
+  }
+}
+
 interface CreateInstanceRequest {
   instanceName: string;
   connectionName: string;
   evolutionEndpoint?: string;
   evolutionApiKey?: string;
+}
+
+interface SendMessageRequest {
+  action: 'sendMessage';
+  instanceName: string;
+  to: string;
+  message: string;
 }
 
 interface EvolutionAPIResponse {
@@ -27,7 +125,15 @@ serve(async (req) => {
 
   try {
     if (req.method === 'POST') {
-      const { instanceName, connectionName, evolutionEndpoint, evolutionApiKey }: CreateInstanceRequest = await req.json()
+      const requestBody = await req.json()
+      
+      // Verificar se é um envio de mensagem
+      if (requestBody.action === 'sendMessage') {
+        return await handleSendMessage(requestBody as SendMessageRequest)
+      }
+      
+      // Caso contrário, é criação de instância
+      const { instanceName, connectionName, evolutionEndpoint, evolutionApiKey }: CreateInstanceRequest = requestBody
       
       if (!instanceName || !connectionName) {
         return new Response(
