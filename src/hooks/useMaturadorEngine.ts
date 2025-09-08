@@ -97,6 +97,15 @@ export const useMaturadorEngine = () => {
       if (fromConnection.status !== 'active' || toConnection.status !== 'active') {
         throw new Error(`Uma das conexões não está ativa: ${fromChipName} (${fromConnection.status}) ou ${toChipName} (${toConnection.status})`);
       }
+
+      // Validar se as conexões têm os dados necessários para envio
+      if (!fromConnection.evolutionInstanceName) {
+        throw new Error(`Conexão ${fromChipName} não tem instanceName configurado. Configure a instância na Evolution API.`);
+      }
+
+      if (!toConnection.phone && !toConnection.evolutionInstanceId) {
+        throw new Error(`Conexão ${toChipName} não tem telefone configurado. Configure o número de telefone.`);
+      }
       
       // Preparar número do destinatário (limpar formatação)
       let toNumber = toConnection.phone || toConnection.evolutionInstanceId || '';
@@ -104,6 +113,10 @@ export const useMaturadorEngine = () => {
         toNumber = toNumber.substring(1);
       }
       toNumber = toNumber.replace(/\D/g, ''); // Remove tudo que não for dígito
+
+      if (!toNumber) {
+        throw new Error(`Número de telefone inválido para ${toChipName}`);
+      }
       
       console.log(`Detalhes do envio:`, {
         from: fromConnection.evolutionInstanceName,
@@ -262,9 +275,20 @@ export const useMaturadorEngine = () => {
         
       } catch (error) {
         console.error('❌ Erro ao enviar mensagem real:', error);
+        
+        let errorMessage = `Não foi possível enviar mensagem real de ${respondingChip.name} para ${receivingChip.name}.`;
+        
+        if (error.message.includes('instanceName')) {
+          errorMessage += ' Configure a instância Evolution API nas conexões.';
+        } else if (error.message.includes('telefone')) {
+          errorMessage += ' Configure os números de telefone nas conexões.';
+        } else {
+          errorMessage += ` Erro: ${error.message}`;
+        }
+        
         toast({
           title: "Erro no Envio",
-          description: `Não foi possível enviar mensagem real de ${respondingChip.name} para ${receivingChip.name}. Verifique se as conexões estão configuradas corretamente.`,
+          description: errorMessage,
           variant: "destructive"
         });
         // Não salva mensagem nem incrementa contador se falhou o envio real
