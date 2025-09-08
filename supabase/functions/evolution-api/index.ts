@@ -1,35 +1,32 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
 // Função para enviar mensagens
 async function handleSendMessage(request: SendMessageRequest) {
-  const { instanceName, to, message } = request
+  console.log('📤 Enviando mensagem:', request);
   
-  if (!instanceName || !to || !message) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'instanceName, to and message are required' }),
-      { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+  // Validar entrada
+  if (!request.instanceName || !request.to || !request.message) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'instanceName, to, and message are required'
+    }), { 
+      status: 400, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
-  const apiKey = Deno.env.get('EVOLUTION_API_KEY')
-  let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+  // Usar dados dos secrets configurados
+  const apiKey = Deno.env.get('EVOLUTION_API_KEY');
+  let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
   
   if (!apiKey || !endpoint) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Evolution API not configured' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Evolution API credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.'
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
   // Garantir que o endpoint tenha o protocolo HTTPS
@@ -38,62 +35,67 @@ async function handleSendMessage(request: SendMessageRequest) {
   }
 
   try {
-    console.log(`Enviando mensagem via Evolution API: ${instanceName} -> ${to}`)
-    
-    const messagePayload = {
-      number: to,
-      text: message
-    }
+    // Construir payload para a Evolution API
+    const payload = {
+      number: request.to,
+      text: request.message
+    };
 
-    const response = await fetch(`${endpoint}/message/sendText/${instanceName}`, {
+    console.log('🔄 Enviando para Evolution API:', {
+      url: `${endpoint}/message/sendText/${request.instanceName}`,
+      payload
+    });
+
+    // Fazer a requisição para a Evolution API
+    const response = await fetch(`${endpoint}/message/sendText/${request.instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': apiKey
       },
-      body: JSON.stringify(messagePayload)
-    })
+      body: JSON.stringify(payload)
+    });
 
-    console.log(`Send message response status: ${response.status}`)
+    const responseData = await response.json();
+    console.log('📥 Resposta da Evolution API:', responseData);
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Erro ao enviar mensagem: ${response.status} - ${errorText}`)
-      throw new Error(`Erro ao enviar mensagem: ${response.status} - ${errorText}`)
+      console.error('❌ Erro na Evolution API:', responseData);
+      return new Response(JSON.stringify({
+        success: false,
+        error: responseData.message || 'Failed to send message',
+        details: responseData
+      }), { 
+        status: response.status, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    const responseData = await response.json()
-    console.log('Mensagem enviada com sucesso:', responseData)
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        messageId: responseData.key?.id,
-        instanceName,
-        to,
-        message 
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    // Sucesso
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Message sent successfully',
+      data: responseData
+    }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
-    console.error('Erro ao enviar mensagem:', error)
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message,
-        instanceName,
-        to 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    console.error('❌ Erro interno ao enviar mensagem:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
+}
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 interface CreateInstanceRequest {
@@ -149,12 +151,17 @@ serve(async (req) => {
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
-      if (!apiKey) {
-        throw new Error('Evolution API key not configured in secrets')
-      }
-      
-      if (!endpoint) {
-        throw new Error('Evolution API endpoint not configured in secrets')
+      if (!apiKey || !endpoint) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Evolution API credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.' 
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
       }
 
       // Garantir que o endpoint tenha o protocolo HTTPS
@@ -162,60 +169,46 @@ serve(async (req) => {
         endpoint = `https://${endpoint}`;
       }
 
-      console.log(`Creating Evolution API instance: ${instanceName} for connection: ${connectionName}`)
-      console.log(`Using configured endpoint: ${endpoint}`)
-      console.log(`Using configured API key: ${apiKey ? 'Present' : 'Missing'}`)
-      
       try {
-        // Create instance in Evolution API
-        console.log(`Making request to: ${endpoint}/instance/create`)
+        console.log(`Creating instance: ${instanceName}`)
         
-        // Payload baseado na documentação da Evolution API
-        const payload = {
-          instanceName: instanceName,
-          token: apiKey,
-          qrcode: true,
-          integration: "WHATSAPP-BAILEYS",
-          webhookUrl: "",
-          webhookByEvents: false,
-          webhookBase64: false,
-          markMessagesRead: true,
-          markPresence: true,
-          syncFullHistory: false
-        };
-
-        console.log(`Using payload:`, JSON.stringify(payload, null, 2));
-        
-        const createInstanceResponse = await fetch(`${endpoint}/instance/create`, {
+        // Criar a instância na Evolution API
+        const createResponse = await fetch(`${endpoint}/instance/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': apiKey
           },
-          body: JSON.stringify(payload)
-        });
+          body: JSON.stringify({
+            instanceName: instanceName,
+            qrcode: true,
+            integration: "WHATSAPP-BAILEYS"
+          })
+        })
 
-        console.log(`Create instance response status: ${createInstanceResponse.status}`)
-        console.log(`Create instance response headers:`, Object.fromEntries(createInstanceResponse.headers.entries()))
-
-        if (!createInstanceResponse.ok) {
-          const errorText = await createInstanceResponse.text()
-          console.error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
-          throw new Error(`Evolution API instance creation failed: ${createInstanceResponse.status} - ${errorText}`)
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json()
+          console.error('Evolution API create instance error:', errorData)
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: errorData.message || 'Failed to create instance',
+              details: errorData
+            }),
+            { 
+              status: createResponse.status, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
         }
 
-        const instanceData = await createInstanceResponse.json()
-        console.log('Instance created:', instanceData)
+        const createData = await createResponse.json()
+        console.log('Instance created successfully:', createData)
 
-        // Wait a moment for instance to initialize
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Aguardar um pouco para a instância ficar pronta
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Buscar QR Code da instância criada
-        console.log(`Making QR request to: ${endpoint}/instance/connect/${instanceName}`)
-        
-        // Aguardar um pouco para a instância inicializar
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        
+        // Get QR code
         const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {
@@ -223,16 +216,10 @@ serve(async (req) => {
           }
         })
 
-        console.log(`QR response status: ${qrResponse.status}`)
-        
-        let qrCode = null;
-        
+        let qrCode = null
         if (qrResponse.ok) {
           const qrData = await qrResponse.json()
-          console.log('QR response:', qrData)
-          qrCode = qrData.base64 || qrData.qrcode || qrData.code;
-        } else {
-          console.log('QR not ready yet, will be generated on next request')
+          qrCode = qrData.base64 || qrData.qrcode
         }
 
         const response: EvolutionAPIResponse = {
@@ -249,33 +236,25 @@ serve(async (req) => {
           }
         )
 
-      } catch (apiError) {
-        console.error('Evolution API Error:', apiError)
-        
-        // Fallback to generate a more realistic QR code for demo purposes
-        const qrCodeData = `whatsapp://send?text=${encodeURIComponent(`Connect ${connectionName} - ${instanceName}`)}`
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`
-        
-        const response: EvolutionAPIResponse = {
-          success: true,
-          qrCode: qrCodeUrl,
-          instanceName: instanceName
-        }
-
+      } catch (error) {
+        console.error('Evolution API error:', error)
         return new Response(
-          JSON.stringify(response),
+          JSON.stringify({ 
+            success: false, 
+            error: error.message || 'Failed to create instance' 
+          }),
           { 
-            status: 200, 
+            status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         )
       }
     }
 
-    // GET method - get instance status and QR code
     if (req.method === 'GET') {
       const url = new URL(req.url)
       const instanceName = url.searchParams.get('instanceName')
+      const action = url.searchParams.get('action') || 'qrcode'
       
       if (!instanceName) {
         return new Response(
@@ -291,12 +270,17 @@ serve(async (req) => {
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
-      if (!apiKey) {
-        throw new Error('Evolution API key not configured in secrets')
-      }
-      
-      if (!endpoint) {
-        throw new Error('Evolution API endpoint not configured in secrets')
+      if (!apiKey || !endpoint) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Evolution API credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.' 
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
       }
 
       // Garantir que o endpoint tenha o protocolo HTTPS
@@ -305,25 +289,87 @@ serve(async (req) => {
       }
       
       try {
-        // Get QR code from Evolution API
-        console.log(`Fetching QR from: ${endpoint}/instance/connect/${instanceName}`)
-        const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+        // Buscar dados da instância
+        console.log(`Fetching instance data from: ${endpoint}/instance/fetchInstances?instanceName=${instanceName}`)
+        const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
             'apikey': apiKey
           }
         })
 
-        if (!qrResponse.ok) {
-          throw new Error(`Evolution API QR fetch failed: ${qrResponse.status}`)
+        if (!instanceResponse.ok) {
+          throw new Error(`Evolution API instance fetch failed: ${instanceResponse.status}`)
         }
 
-        const qrData = await qrResponse.json()
+        const instanceData = await instanceResponse.json()
+        console.log('Instance data received:', instanceData)
         
-        const response: EvolutionAPIResponse = {
+        if (!instanceData || instanceData.length === 0) {
+          throw new Error('Instance not found')
+        }
+
+        const instance = instanceData[0]
+        let qrCodeData = null
+        let profileData = {}
+
+        // Se a instância tem QR Code, usar ele
+        if (instance.instance && instance.instance.qrcode) {
+          qrCodeData = instance.instance.qrcode
+        }
+
+        // Se a instância está conectada, buscar dados do perfil
+        if (instance.instance && instance.instance.state === 'open') {
+          try {
+            // Buscar foto do perfil
+            console.log(`Fetching profile from: ${endpoint}/chat/whatsappProfile/${instanceName}`)
+            const profileResponse = await fetch(`${endpoint}/chat/whatsappProfile/${instanceName}`, {
+              headers: {
+                'apikey': apiKey
+              }
+            })
+
+            if (profileResponse.ok) {
+              const profileInfo = await profileResponse.json()
+              console.log('Profile data received:', profileInfo)
+              
+              if (profileInfo) {
+                profileData = {
+                  phoneNumber: profileInfo.wuid?.replace('@s.whatsapp.net', ''),
+                  displayName: profileInfo.name,
+                  profilePicture: profileInfo.picture || profileInfo.profilePictureUrl
+                }
+              }
+            }
+          } catch (profileError) {
+            console.log('Error fetching profile:', profileError)
+          }
+        } else if (!qrCodeData) {
+          // Get QR code from Evolution API
+          console.log(`Fetching QR from: ${endpoint}/instance/connect/${instanceName}`)
+          try {
+            const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': apiKey
+              }
+            })
+
+            if (qrResponse.ok) {
+              const qrData = await qrResponse.json()
+              qrCodeData = qrData.base64 || qrData.qrcode
+            }
+          } catch (qrError) {
+            console.log('Error fetching QR code:', qrError)
+          }
+        }
+
+        const response = {
           success: true,
-          qrCode: qrData.base64 || qrData.qrcode,
-          instanceName: instanceName
+          qrCode: qrCodeData,
+          instance: instance,
+          instanceName: instanceName,
+          ...profileData
         }
 
         return new Response(
@@ -335,7 +381,7 @@ serve(async (req) => {
         )
 
       } catch (apiError) {
-        console.error('Evolution API QR fetch error:', apiError)
+        console.error('Evolution API error:', apiError)
         
         // Fallback QR code
         const qrCodeData = `evolution-qr-${instanceName}-${Date.now()}`

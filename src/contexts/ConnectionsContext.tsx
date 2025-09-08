@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface WhatsAppConnection {
   id: string;
   name: string;
-  status: 'active' | 'inactive' | 'connecting' | 'error';
+  status: 'active' | 'inactive' | 'connecting' | 'error' | 'pending';
   qrCode?: string;
   lastActive: string;
   phone?: string;
@@ -13,6 +13,8 @@ export interface WhatsAppConnection {
   isActive: boolean;
   conversationsCount: number;
   aiModel?: string;
+  avatar?: string;
+  displayName?: string;
 }
 
 interface ConnectionsContextType {
@@ -253,9 +255,18 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         status: 'connecting'
       });
 
-      // Buscar QR Code atualizado da instância usando a Edge Function
+      // Garantir que a conexão tenha um evolutionInstanceName
       const instanceName = connection.evolutionInstanceName || connection.name.toLowerCase().replace(/\s+/g, '_');
-      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}`;
+      
+      // Se não tinha instanceName, atualizar primeiro
+      if (!connection.evolutionInstanceName) {
+        await updateConnection(connectionId, {
+          evolutionInstanceName: instanceName
+        });
+      }
+
+      // Buscar status da instância na Evolution API
+      const evolutionApiUrl = `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`;
 
       const response = await fetch(evolutionApiUrl, {
         method: 'GET',
@@ -273,17 +284,44 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       if (!data || !data.success) {
-        throw new Error(data?.error || 'Falha ao buscar QR Code da Evolution API');
+        throw new Error(data?.error || 'Falha ao buscar dados da Evolution API');
       }
 
-      console.log('QR Code obtido:', data);
+      console.log('Dados da instância obtidos:', data);
 
-      // Atualizar conexão com QR Code atualizado
-      await updateConnection(connectionId, {
+      // Extrair informações da instância
+      const updateData: any = {
         status: 'active',
-        qrCode: data.qrCode,
-        isActive: true
-      });
+        isActive: true,
+        lastActive: new Date().toISOString()
+      };
+
+      // Se tem QR code, ainda não está conectado
+      if (data.qrCode) {
+        updateData.qrCode = data.qrCode;
+        updateData.status = 'pending';
+      }
+
+      // Se a instância está conectada, puxar dados do perfil
+      if (data.instance && data.instance.state === 'open') {
+        updateData.status = 'active';
+        
+        // Puxar número e foto do perfil
+        if (data.profilePicture) {
+          updateData.avatar = data.profilePicture;
+        }
+        
+        if (data.phoneNumber) {
+          updateData.phone = data.phoneNumber;
+        }
+        
+        if (data.displayName) {
+          updateData.displayName = data.displayName;
+        }
+      }
+
+      // Atualizar conexão com os novos dados
+      await updateConnection(connectionId, updateData);
 
     } catch (error) {
       console.error('Erro ao sincronizar com Evolution API:', error);

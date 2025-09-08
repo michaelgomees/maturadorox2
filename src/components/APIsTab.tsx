@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, CheckCircle, XCircle, RefreshCw, Save, Plus, QrCode, Bot, Brain, Sparkles, Network, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ConnectionDashboard } from "./ConnectionDashboard";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { QRCodeViewModal } from "@/components/QRCodeViewModal";
 
@@ -295,25 +296,24 @@ export const APIsTab = () => {
       // Gerar novo evolutionInstanceName se não tiver
       const instanceName = connection.evolutionInstanceName || connection.name.toLowerCase().replace(/\s+/g, '_');
       
-      // Atualizar com o instanceName
+      // Atualizar com o instanceName primeiro
       await updateConnection(id, {
-        evolutionInstanceName: instanceName,
-        phone: connection.phone || `+5511${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`
+        evolutionInstanceName: instanceName
       });
 
-      // Tentar sincronizar com Evolution API
+      // Tentar sincronizar com Evolution API para puxar dados do perfil
       await syncWithEvolutionAPI(id);
       
       toast({
-        title: "Conexão Reconfigurada",
-        description: `${connection.name} foi reconfigurada com sucesso.`
+        title: "Conexão Sincronizada",
+        description: `${connection.name} foi sincronizada com sucesso.`
       });
     } catch (error) {
-      console.error('Erro ao reconfigurar conexão:', error);
+      console.error('Erro ao sincronizar conexão:', error);
       await updateConnection(id, { status: 'inactive' });
       toast({
-        title: "Erro na Reconfiguração",
-        description: `Não foi possível reconfigurar ${connection.name}. Verifique as configurações da Evolution API.`,
+        title: "Erro na Sincronização",
+        description: `Não foi possível sincronizar ${connection.name}. Verifique as configurações da Evolution API.`,
         variant: "destructive"
       });
     }
@@ -530,7 +530,7 @@ export const APIsTab = () => {
                         disabled={connection.status === 'connecting'}
                       >
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        Reconfigurar
+                        Sincronizar
                       </Button>
                       <Switch
                         checked={connection.isActive}
