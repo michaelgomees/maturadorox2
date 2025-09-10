@@ -119,18 +119,18 @@ export const useMaturadorEngine = () => {
       }
       
       // 🔥 ALTERAÇÃO: ajustar log para mostrar o payload correto (instanceName / receiver)
-      console.log(`Detalhes do envio:`, {
+      console.log(`Detalhes do envio:`, payload); {
         instanceName: fromConnection.evolutionInstanceName, // quem envia
         receiver: toNumber,                                // quem recebe
         message: message.substring(0, 50) + '...'
       });
       
       // 🔥 ALTERAÇÃO: payload esperado pela Edge Function (instanceName, receiver, message)
-      const payload = {
-        instanceName: fromConnection.evolutionInstanceName, // 🔥 ALTERAÇÃO
-        receiver: toNumber,                                 // 🔥 ALTERAÇÃO
-        message                                            // 🔥 ALTERAÇÃO (mesmo nome)
-      };
+     const payload = {
+          instance: fromConnection.evolutionInstanceName, // quem envia
+            number: toNumber,                               // quem recebe
+          text: message                                   // conteúdo
+    };
 
       // 🔥 ALTERAÇÃO: envia o payload correto no body da invocation
       const { data, error } = await supabase.functions.invoke('evolution-api', {
