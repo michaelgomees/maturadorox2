@@ -118,23 +118,22 @@ export const useMaturadorEngine = () => {
         throw new Error(`Número de telefone inválido para ${toChipName}`);
       }
       
-      // 🔥 ALTERAÇÃO: ajustar log para mostrar o payload correto (instanceName / receiver)
-      console.log(`Detalhes do envio:`, payload); {
-        instanceName: fromConnection.evolutionInstanceName, // quem envia
-        receiver: toNumber,                                // quem recebe
+      // Preparar payload para a Edge Function
+      const payload = {
+        instance: fromConnection.evolutionInstanceName,
+        number: toNumber,
+        text: message
+      };
+      
+      console.log(`Detalhes do envio:`, {
+        instanceName: fromConnection.evolutionInstanceName,
+        receiver: toNumber,
         message: message.substring(0, 50) + '...'
       });
-      
-      // 🔥 ALTERAÇÃO: payload esperado pela Edge Function (instanceName, receiver, message)
-     const payload = {
-          instance: fromConnection.evolutionInstanceName, // quem envia
-            number: toNumber,                               // quem recebe
-          text: message                                   // conteúdo
-    };
 
-      // 🔥 ALTERAÇÃO: envia o payload correto no body da invocation
+      // Enviar via Evolution API
       const { data, error } = await supabase.functions.invoke('evolution-api', {
-        body: payload // 🔥 ALTERAÇÃO
+        body: payload
       });
       
       if (error) {
