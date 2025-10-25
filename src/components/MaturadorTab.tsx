@@ -167,8 +167,8 @@ export const MaturadorTab = () => {
 
   const getStatusBadge = (status: ChipPair['status']) => {
     switch (status) {
-      case 'running': return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Em Execução</Badge>;
-      case 'paused': return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pausado</Badge>;
+      case 'running': return <Badge className="bg-success/20 text-success border-success/30">Em Execução</Badge>;
+      case 'paused': return <Badge className="bg-warning/20 text-warning border-warning/30">Pausado</Badge>;
       default: return <Badge variant="secondary">Parado</Badge>;
     }
   };
@@ -230,7 +230,7 @@ export const MaturadorTab = () => {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 p-6">
-            <Activity className="w-8 h-8 text-green-500" />
+            <Activity className="w-8 h-8 text-success" />
             <div><p className="text-sm text-muted-foreground">Duplas Ativas</p><p className="text-2xl font-bold">{config.selectedPairs.filter(p => p.status === 'running').length}</p></div>
           </CardContent>
         </Card>
@@ -264,7 +264,7 @@ export const MaturadorTab = () => {
                     : activeConnections.map(conn => (
                       <SelectItem key={conn.id} value={conn.name}>
                         <div className="flex items-center gap-2">
-                          <Wifi className="w-3 h-3 text-green-500" />{conn.name}
+                          <Wifi className="w-3 h-3 text-success" />{conn.name}
                           <Badge variant="outline" className="text-xs">{conn.platform}</Badge>
                         </div>
                       </SelectItem>
@@ -287,7 +287,7 @@ export const MaturadorTab = () => {
                     : getAvailableChipsForSecond(newPair.chip1).map(conn => (
                       <SelectItem key={conn.name} value={conn.name}>
                         <div className="flex items-center gap-2">
-                          <Wifi className="w-3 h-3 text-green-500" />{conn.name}
+                          <Wifi className="w-3 h-3 text-success" />{conn.name}
                           <Badge variant="outline" className="text-xs">WhatsApp</Badge>
                         </div>
                       </SelectItem>
