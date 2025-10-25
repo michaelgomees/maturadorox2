@@ -12,6 +12,8 @@ import { Play, Pause, Square, Settings, MessageCircle, Users, Activity, Zap, Arr
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useToast } from '@/hooks/use-toast';
+import { useConnections } from '@/contexts/ConnectionsContext';
+import { PairMessagesModal } from './PairMessagesModal';
 
 interface AIPrompt {
   id: string;
@@ -19,12 +21,6 @@ interface AIPrompt {
   content: string;
   category: string;
   isGlobal?: boolean;
-}
-
-interface ActiveConnection {
-  id: string;
-  name: string;
-  status: string;
 }
 
 export const EnhancedMaturadorTab: React.FC = () => {
@@ -39,12 +35,13 @@ export const EnhancedMaturadorTab: React.FC = () => {
     getPairMessages 
   } = useMaturadorEngine();
   
+  const { connections } = useConnections();
   const [availablePrompts, setAvailablePrompts] = useState<AIPrompt[]>([]);
   const [newPair, setNewPair] = useState({
     firstChipId: '',
     secondChipId: ''
   });
-  const [activeConnections, setActiveConnections] = useState<ActiveConnection[]>([]);
+  const [selectedPairForMessages, setSelectedPairForMessages] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Carregar dados iniciais
@@ -56,25 +53,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
       const prompts = JSON.parse(savedPrompts);
       setAvailablePrompts(prompts);
     }
-
-    // Carregar conexões ativas
-    const connections = getActiveConnections();
-    setActiveConnections(connections);
   }, [loadData]);
 
-  const getActiveConnections = (): ActiveConnection[] => {
-    const savedConnections = localStorage.getItem('ox-chip-configs');
-    if (!savedConnections) return [];
-    
-    const connections = JSON.parse(savedConnections);
-    return connections
-      .filter((conn: any) => conn.isActive)
-      .map((conn: any) => ({
-        id: conn.id,
-        name: conn.name,
-        status: 'active'
-      }));
-  };
+  // Filtrar apenas conexões ativas
+  const activeConnections = connections.filter(conn => conn.status === 'active');
 
   const handleAddPair = () => {
     if (!newPair.firstChipId || !newPair.secondChipId || newPair.firstChipId === newPair.secondChipId) {
@@ -95,16 +77,25 @@ export const EnhancedMaturadorTab: React.FC = () => {
       isActive: true,
       messagesCount: 0,
       lastActivity: new Date(),
-      status: 'stopped' as const,
+      status: 'running' as const,
       useInstancePrompt: false
     };
 
-    setChipPairs(prev => [...prev, newChipPair]);
+    setChipPairs(prev => {
+      const updated = [...prev, newChipPair];
+      // Salvar no localStorage
+      localStorage.setItem('ox-enhanced-maturador-config', JSON.stringify({
+        isRunning: false,
+        selectedPairs: updated
+      }));
+      return updated;
+    });
+    
     setNewPair({ firstChipId: '', secondChipId: '' });
     
     toast({
       title: "Par Configurado",
-      description: `${firstChip.name} <-> ${secondChip.name}`,
+      description: `${firstChip.name} <-> ${secondChip.name} - Pronto para iniciar conversas!`,
     });
   };
 
@@ -173,7 +164,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
     }
   };
 
-  const getAvailableChipsForSecond = (): ActiveConnection[] => {
+  const getAvailableChipsForSecond = () => {
     return activeConnections.filter(conn => conn.id !== newPair.firstChipId);
   };
 
@@ -392,14 +383,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                const messages = getPairMessages(pair.id);
-                                console.log('Mensagens do par:', messages);
-                                toast({
-                                  title: "Mensagens do Par",
-                                  description: `${messages.length} mensagens encontradas. Verifique o console.`,
-                                });
-                              }}
+                              onClick={() => setSelectedPairForMessages(pair.id)}
                             >
                               <MessageCircle className="w-4 h-4" />
                             </Button>
@@ -479,6 +463,18 @@ export const EnhancedMaturadorTab: React.FC = () => {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Modal de Mensagens */}
+      {selectedPairForMessages && (
+        <PairMessagesModal
+          open={!!selectedPairForMessages}
+          onOpenChange={(open) => !open && setSelectedPairForMessages(null)}
+          pairName={chipPairs.find(p => p.id === selectedPairForMessages)
+            ? `${chipPairs.find(p => p.id === selectedPairForMessages)!.firstChipName} ↔ ${chipPairs.find(p => p.id === selectedPairForMessages)!.secondChipName}`
+            : ''}
+          messages={getPairMessages(selectedPairForMessages)}
+        />
       )}
     </div>
   );

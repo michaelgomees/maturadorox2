@@ -67,10 +67,10 @@ export const useMaturadorEngine = () => {
   const saveData = useCallback((newMessages: MaturadorMessage[], newPairs: ChipPair[]) => {
     localStorage.setItem('ox-maturador-messages', JSON.stringify(newMessages));
     localStorage.setItem('ox-enhanced-maturador-config', JSON.stringify({
-      isRunning,
+      isRunning: false, // Sempre salva como false, o estado de isRunning vem do estado do componente
       selectedPairs: newPairs
     }));
-  }, [isRunning]);
+  }, []);
 
   // Enviar mensagem real através da Evolution API
   const sendRealMessage = useCallback(async (
@@ -311,48 +311,69 @@ export const useMaturadorEngine = () => {
     console.log('Total de pares:', chipPairs.length);
     console.log('Pares configurados:', chipPairs);
     
-    const activePairs = chipPairs.filter(pair => pair.isActive && pair.status !== 'paused');
+    const activePairs = chipPairs.filter(pair => pair.isActive);
     console.log('Pares ativos encontrados:', activePairs.length, activePairs);
     
     if (activePairs.length === 0) {
       console.warn('Nenhum par ativo encontrado!');
+      toast({
+        title: "Nenhum Par Ativo",
+        description: "Configure e ative pelo menos um par para iniciar o maturador",
+        variant: "destructive"
+      });
       return;
     }
     
     setIsRunning(true);
     
+    // Atualizar status dos pares para 'running'
+    setChipPairs(prev => {
+      const updated = prev.map(pair => 
+        pair.isActive ? { ...pair, status: 'running' as const } : pair
+      );
+      saveData(messages, updated);
+      return updated;
+    });
+    
     // Iniciar conversas para cada par ativo
     activePairs.forEach((pair, index) => {
       console.log(`Configurando par ${index + 1}:`, pair.firstChipName, '<->', pair.secondChipName);
       
-      // Primeira mensagem imediata
+      // Primeira mensagem imediata (com delay escalonado)
       const immediateTimeout = setTimeout(async () => {
-        console.log(`Executando primeira mensagem para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+        console.log(`✨ Executando primeira mensagem para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
         await processChipPairConversation(pair);
-      }, 1000 + (index * 500)); // Espaçar as primeiras mensagens
+      }, 2000 + (index * 1000)); // 2s, 3s, 4s... para cada par
       
       // Configurar intervalo para mensagens regulares
       const interval = setInterval(async () => {
-        console.log(`Executando mensagem periódica para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+        console.log(`🔄 Executando mensagem periódica para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
         await processChipPairConversation(pair);
-      }, Math.random() * 20000 + 10000); // 10-30 segundos
+      }, 15000 + Math.random() * 15000); // 15-30 segundos
       
       intervalRefs.current.set(pair.id, interval);
-      console.log(`Intervalo configurado para par ${pair.id}`);
+      console.log(`✅ Intervalo configurado para par ${pair.id}`);
     });
 
     console.log('Total de intervalos ativos:', intervalRefs.current.size);
 
     toast({
-      title: "Maturador Iniciado",
-      description: `Sistema ativado para ${activePairs.length} pares`,
+      title: "🚀 Maturador Iniciado",
+      description: `Sistema ativado para ${activePairs.length} par(es). As conversas começarão em instantes!`,
     });
-  }, [chipPairs, processChipPairConversation, toast]);
+  }, [chipPairs, processChipPairConversation, toast, messages, saveData]);
 
   // Parar maturador
   const stopMaturador = useCallback(() => {
-    console.log('Parando maturador...');
+    console.log('⏹️ Parando maturador...');
     setIsRunning(false);
+    
+    // Atualizar status dos pares para 'stopped'
+    setChipPairs(prev => {
+      const updated = prev.map(pair => ({ ...pair, status: 'stopped' as const }));
+      saveData(messages, updated);
+      return updated;
+    });
     
     // Limpar todos os intervalos
     intervalRefs.current.forEach(interval => {
@@ -361,10 +382,10 @@ export const useMaturadorEngine = () => {
     intervalRefs.current.clear();
 
     toast({
-      title: "Maturador Parado",
+      title: "⏸️ Maturador Parado",
       description: "Sistema de conversas automáticas desativado",
     });
-  }, [toast]);
+  }, [toast, messages, saveData]);
 
   // Obter mensagens de um par específico
   const getPairMessages = useCallback((pairId: string) => {
